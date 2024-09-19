@@ -57,7 +57,19 @@ CPUState *cpu_create(const char *typename)
 {
     Error *err = NULL;
     CPUState *cpu = CPU(object_new(typename));
-    if (!qdev_realize(DEVICE(cpu), NULL, &err)) {
+    BusState *bus = NULL;
+
+    if (DEVICE_GET_CLASS(cpu)->bus_type) {
+        MachineState *ms;
+
+        ms = (MachineState *)object_dynamic_cast(qdev_get_machine(),
+                                                 TYPE_MACHINE);
+        if (ms) {
+            bus = BUS(&ms->topo->bus);
+        }
+    }
+
+    if (!qdev_realize(DEVICE(cpu), bus, &err)) {
         error_report_err(err);
         object_unref(OBJECT(cpu));
         exit(EXIT_FAILURE);
@@ -196,6 +208,12 @@ static void cpu_common_realizefn(DeviceState *dev, Error **errp)
 {
     CPUState *cpu = CPU(dev);
     Object *machine = qdev_get_machine();
+    CPUClass *cc = CPU_GET_CLASS(cpu);
+
+    cc->parent_realize(dev, errp);
+    if (*errp) {
+        return;
+    }
 
     /* qdev_get_machine() can return something that's not TYPE_MACHINE
      * if this is one of the user-only emulators; in that case there's
@@ -302,6 +320,7 @@ static void cpu_common_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     ResettableClass *rc = RESETTABLE_CLASS(klass);
+    CPUTopoClass *tc = CPU_TOPO_CLASS(klass);
     CPUClass *k = CPU_CLASS(klass);
 
     k->parse_features = cpu_common_parse_features;
@@ -309,9 +328,6 @@ static void cpu_common_class_init(ObjectClass *klass, void *data)
     k->has_work = cpu_common_has_work;
     k->gdb_read_register = cpu_common_gdb_read_register;
     k->gdb_write_register = cpu_common_gdb_write_register;
-    set_bit(DEVICE_CATEGORY_CPU, dc->categories);
-    dc->realize = cpu_common_realizefn;
-    dc->unrealize = cpu_common_unrealizefn;
     rc->phases.hold = cpu_common_reset_hold;
     cpu_class_init_props(dc);
     /*
@@ -319,11 +335,27 @@ static void cpu_common_class_init(ObjectClass *klass, void *data)
      * IRQs, adding reset handlers, halting non-first CPUs, ...
      */
     dc->user_creatable = false;
+    /*
+     * CPU is the minimum granularity for hotplug in most case, and
+     * often its hotplug handler is ultimately decided by the machine.
+     * For generality, set this flag to avoid blocking possible hotplug
+     * support.
+     */
+    dc->hotpluggable = true;
+    device_class_set_parent_realize(dc, cpu_common_realizefn,
+                                    &k->parent_realize);
+    dc->unrealize = cpu_common_unrealizefn;
+    /*
+     * Avoid archs that do not support topology device trees from
+     * encountering error when creating CPUs.
+     */
+    dc->bus_type = NULL;
+    tc->level = CPU_TOPOLOGY_LEVEL_THREAD;
 }
 
 static const TypeInfo cpu_type_info = {
     .name = TYPE_CPU,
-    .parent = TYPE_DEVICE,
+    .parent = TYPE_CPU_TOPO,
     .instance_size = sizeof(CPUState),
     .instance_init = cpu_common_initfn,
     .instance_finalize = cpu_common_finalize,

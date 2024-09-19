@@ -2351,7 +2351,7 @@ static void alter_insns(uint64_t *word, uint64_t flags, bool on)
 static bool kvmppc_cpu_realize(CPUState *cs, Error **errp)
 {
     int ret;
-    const char *vcpu_str = (cs->parent_obj.hotplugged == true) ?
+    const char *vcpu_str = (DEVICE(cs)->hotplugged == true) ?
                            "hotplug" : "create";
     cs->cpu_index = cpu_get_free_index();
 
