@@ -19,6 +19,7 @@
 
 #include "qemu/osdep.h"
 #include "hw/sysbus.h"
+#include "monitor/bus-finder.h"
 #include "monitor/hmp.h"
 #include "monitor/monitor.h"
 #include "monitor/qdev.h"
@@ -589,6 +590,16 @@ static BusState *qbus_find(const char *path, Error **errp)
     return bus;
 }
 
+static inline bool qdev_post_find_bus(DeviceClass *dc)
+{
+    return is_bus_finder_type(dc);
+}
+
+static inline BusState *qdev_find_bus_post_device(DeviceState *dev)
+{
+    return bus_finder_select_bus(dev);
+}
+
 /* Takes ownership of @id, will be freed when deleting the device */
 const char *qdev_set_id(DeviceState *dev, char *id, Error **errp)
 {
@@ -630,6 +641,7 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
     char *id;
     DeviceState *dev = NULL;
     BusState *bus = NULL;
+    bool post_bus = false;
 
     driver = qdict_get_try_str(opts, "driver");
     if (!driver) {
@@ -656,11 +668,15 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
             return NULL;
         }
     } else if (dc->bus_type != NULL) {
-        bus = qbus_find_recursive(sysbus_get_default(), NULL, dc->bus_type);
-        if (!bus || qbus_is_full(bus)) {
-            error_setg(errp, "No '%s' bus found for device '%s'",
-                       dc->bus_type, driver);
-            return NULL;
+        if (qdev_post_find_bus(dc)) {
+            post_bus = true;             /* Wait for bus-finder to arbitrate. */
+        } else {
+            bus = qbus_find_recursive(sysbus_get_default(), NULL, dc->bus_type);
+            if (!bus || qbus_is_full(bus)) {
+                error_setg(errp, "No '%s' bus found for device '%s'",
+                           dc->bus_type, driver);
+                return NULL;
+            }
         }
     }
 
@@ -720,6 +736,21 @@ DeviceState *qdev_device_add_from_qdict(const QDict *opts,
                                       errp);
     if (*errp) {
         goto err_del_dev;
+    }
+
+    if (post_bus) {
+        bus = qdev_find_bus_post_device(dev);
+        if (!bus) {
+            error_setg(errp, "No proper '%s' bus found for device '%s'",
+                       dc->bus_type, driver);
+            goto err_del_dev;
+        }
+
+        if (phase_check(PHASE_MACHINE_READY) && !qbus_is_hotpluggable(bus)) {
+            error_setg(errp, "Bus '%s' does not support hotplugging",
+                       bus->name);
+            goto err_del_dev;
+        }
     }
 
     if (!qdev_realize(dev, bus, errp)) {

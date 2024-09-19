@@ -3281,12 +3281,14 @@ F: hw/core/qdev*
 F: hw/core/bus.c
 F: hw/core/sysbus.c
 F: include/hw/qdev*
+F: include/monitor/bus-finder.h
 F: include/monitor/qdev.h
 F: include/qom/
 F: qapi/qom.json
 F: qapi/qdev.json
 F: scripts/coccinelle/qom-parent-type.cocci
 F: scripts/qom-cast-macro-clean-cocci-gen.py
+F: system/bus-finder.c
 F: system/qdev-monitor.c
 F: stubs/qdev.c
 F: qom/
