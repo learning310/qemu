@@ -84,5 +84,6 @@ int get_max_topo_by_level(const MachineState *ms, CpuTopologyLevel level);
 bool machine_parse_custom_topo_config(MachineState *ms,
                                       const SMPConfiguration *config,
                                       Error **errp);
+bool machine_validate_topo_tree(MachineState *ms, Error **errp);
 
 #endif /* CPU_SLOT_H */

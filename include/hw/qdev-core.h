@@ -1063,6 +1063,11 @@ static inline void qbus_mark_full(BusState *bus)
     bus->full = true;
 }
 
+static inline void qbus_mask_full(BusState *bus)
+{
+    bus->full = false;
+}
+
 void device_listener_register(DeviceListener *listener);
 void device_listener_unregister(DeviceListener *listener);
 

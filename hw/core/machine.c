@@ -1684,6 +1684,10 @@ void machine_run_board_post_init(MachineState *machine, Error **errp)
 {
     MachineClass *machine_class = MACHINE_GET_CLASS(machine);
 
+    if (!machine_validate_topo_tree(machine, errp)) {
+        return;
+    }
+
     if (machine_class->post_init) {
         machine_class->post_init(machine);
     }

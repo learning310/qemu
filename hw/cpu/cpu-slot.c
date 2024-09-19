@@ -47,6 +47,7 @@ static void cpu_slot_device_realize(DeviceListener *listener,
 {
     CPUSlot *slot = container_of(listener, CPUSlot, listener);
     CPUTopoState *topo;
+    int max_children;
 
     if (!object_dynamic_cast(OBJECT(dev), TYPE_CPU_TOPO)) {
         return;
@@ -54,6 +55,13 @@ static void cpu_slot_device_realize(DeviceListener *listener,
 
     topo = CPU_TOPO(dev);
     cpu_slot_add_topo_info(slot, topo);
+
+    if (dev->parent_bus) {
+        max_children = slot->stat.entries[GET_CPU_TOPO_LEVEL(topo)].max_limit;
+        if (dev->parent_bus->num_children == max_children) {
+            qbus_mark_full(dev->parent_bus);
+        }
+    }
 }
 
 static void cpu_slot_del_topo_info(CPUSlot *slot, CPUTopoState *topo)
@@ -79,6 +87,10 @@ static void cpu_slot_device_unrealize(DeviceListener *listener,
 
     topo = CPU_TOPO(dev);
     cpu_slot_del_topo_info(slot, topo);
+
+    if (dev->parent_bus) {
+        qbus_mask_full(dev->parent_bus);
+    }
 }
 
 DeviceListener cpu_slot_device_listener = {
@@ -441,5 +453,25 @@ bool machine_parse_custom_topo_config(MachineState *ms,
         }
     }
 
+    return true;
+}
+
+bool machine_validate_topo_tree(MachineState *ms, Error **errp)
+{
+    int cpus;
+
+    if (!ms->topo || !ms->topo->custom_topo_enabled) {
+        return true;
+    }
+
+    cpus = ms->topo->stat.entries[CPU_TOPOLOGY_LEVEL_THREAD].total_instances;
+    if (cpus < ms->smp.cpus) {
+        error_setg(errp, "machine requires at least %d online CPUs, "
+                   "but currently only %d CPUs",
+                   ms->smp.cpus, cpus);
+        return false;
+    }
+
+    /* TODO: Add checks for other levels to honor more -smp parameters. */
     return true;
 }
