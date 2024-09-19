@@ -129,26 +129,18 @@ static void x86_cpu_new(X86MachineState *x86ms, int index,
                         int64_t apic_id, Error **errp)
 {
     MachineState *ms = MACHINE(x86ms);
-    MachineClass *mc = MACHINE_GET_CLASS(ms);
     Object *cpu = object_new(ms->cpu_type);
     DeviceState *dev = DEVICE(cpu);
     BusState *bus = NULL;
+    X86CPUTopoIDs topo_ids;
+    X86CPUTopoInfo topo_info;
 
-    /*
-     * Once x86 machine supports topo_tree_supported, x86 CPU would
-     * also have bus_type.
-     */
-    if (mc->smp_props.topo_tree_supported) {
-        X86CPUTopoIDs topo_ids;
-        X86CPUTopoInfo topo_info;
+    init_topo_info(&topo_info, x86ms);
+    x86_topo_ids_from_apicid(apic_id, &topo_info, &topo_ids);
+    bus = x86_find_topo_bus(ms, &topo_ids);
 
-        init_topo_info(&topo_info, x86ms);
-        x86_topo_ids_from_apicid(apic_id, &topo_info, &topo_ids);
-        bus = x86_find_topo_bus(ms, &topo_ids);
-
-        /* Only with dev->id, CPU can be inserted into topology tree. */
-        dev->id = g_strdup_printf("%s[%d]", ms->cpu_type, index);
-    }
+    /* Only with dev->id, CPU can be inserted into topology tree. */
+    dev->id = g_strdup_printf("%s[%d]", ms->cpu_type, index);
 
     if (!object_property_set_uint(cpu, "apic-id", apic_id, errp)) {
         goto out;
@@ -399,10 +391,7 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
     X86CPU *cpu = X86_CPU(dev);
     CPUX86State *env = &cpu->env;
     MachineState *ms = MACHINE(hotplug_dev);
-    MachineClass *mc = MACHINE_GET_CLASS(ms);
     X86MachineState *x86ms = X86_MACHINE(hotplug_dev);
-    unsigned int smp_cores = ms->smp.cores;
-    unsigned int smp_threads = ms->smp.threads;
     X86CPUTopoInfo topo_info;
 
     if (!object_dynamic_cast(OBJECT(cpu), ms->cpu_type)) {
@@ -434,58 +423,7 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
         set_bit(CPU_TOPOLOGY_LEVEL_DIE, env->avail_cpu_topo);
     }
 
-    if (cpu->apic_id == UNASSIGNED_APIC_ID &&
-        !mc->smp_props.topo_tree_supported) {
-        x86_fixup_topo_ids(ms, cpu);
-
-        if (cpu->socket_id < 0) {
-            error_setg(errp, "CPU socket-id is not set");
-            return;
-        } else if (cpu->socket_id > ms->smp.sockets - 1) {
-            error_setg(errp, "Invalid CPU socket-id: %u must be in range 0:%u",
-                       cpu->socket_id, ms->smp.sockets - 1);
-            return;
-        }
-        if (cpu->die_id < 0) {
-            error_setg(errp, "CPU die-id is not set");
-            return;
-        } else if (cpu->die_id > ms->smp.dies - 1) {
-            error_setg(errp, "Invalid CPU die-id: %u must be in range 0:%u",
-                       cpu->die_id, ms->smp.dies - 1);
-        }
-        if (cpu->module_id < 0) {
-            error_setg(errp, "CPU module-id is not set");
-            return;
-        } else if (cpu->module_id > ms->smp.modules - 1) {
-            error_setg(errp, "Invalid CPU module-id: %u must be in range 0:%u",
-                       cpu->module_id, ms->smp.modules - 1);
-            return;
-        }
-        if (cpu->core_id < 0) {
-            error_setg(errp, "CPU core-id is not set");
-            return;
-        } else if (cpu->core_id > (smp_cores - 1)) {
-            error_setg(errp, "Invalid CPU core-id: %u must be in range 0:%u",
-                       cpu->core_id, smp_cores - 1);
-            return;
-        }
-        if (cpu->thread_id < 0) {
-            error_setg(errp, "CPU thread-id is not set");
-            return;
-        } else if (cpu->thread_id > (smp_threads - 1)) {
-            error_setg(errp, "Invalid CPU thread-id: %u must be in range 0:%u",
-                       cpu->thread_id, smp_threads - 1);
-            return;
-        }
-
-        topo_ids.pkg_id = cpu->socket_id;
-        topo_ids.die_id = cpu->die_id;
-        topo_ids.module_id = cpu->module_id;
-        topo_ids.core_id = cpu->core_id;
-        topo_ids.smt_id = cpu->thread_id;
-        cpu->apic_id = x86_apicid_from_topo_ids(&topo_info, &topo_ids);
-    } else if (cpu->apic_id == UNASSIGNED_APIC_ID &&
-               mc->smp_props.topo_tree_supported) {
+    if (cpu->apic_id == UNASSIGNED_APIC_ID) {
         /*
          * For this case, CPU is added by specifying the bus. Under the
          * topology tree, specifying only the bus should be feasible, but

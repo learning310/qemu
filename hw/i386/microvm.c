@@ -417,16 +417,21 @@ static void microvm_fix_kernel_cmdline(MachineState *machine)
 static void microvm_device_pre_plug_cb(HotplugHandler *hotplug_dev,
                                        DeviceState *dev, Error **errp)
 {
-    X86CPU *cpu = X86_CPU(dev);
+    if (object_dynamic_cast(OBJECT(dev), TYPE_CPU)) {
+        X86CPU *cpu;
+        cpu = X86_CPU(dev);
 
-    cpu->host_phys_bits = true; /* need reliable phys-bits */
-    x86_cpu_pre_plug(hotplug_dev, dev, errp);
+        cpu->host_phys_bits = true; /* need reliable phys-bits */
+        x86_cpu_pre_plug(hotplug_dev, dev, errp);
+    }
 }
 
 static void microvm_device_plug_cb(HotplugHandler *hotplug_dev,
                                    DeviceState *dev, Error **errp)
 {
-    x86_cpu_plug(hotplug_dev, dev, errp);
+    if (object_dynamic_cast(OBJECT(dev), TYPE_CPU)) {
+        x86_cpu_plug(hotplug_dev, dev, errp);
+    }
 }
 
 static void microvm_device_unplug_request_cb(HotplugHandler *hotplug_dev,

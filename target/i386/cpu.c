@@ -8473,6 +8473,8 @@ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
 #ifndef CONFIG_USER_ONLY
     BusFinderClass *bfc = BUS_FINDER_CLASS(oc);
     bfc->find_bus = x86_cpu_get_parent_bus;
+
+    dc->bus_type = TYPE_CPU_BUS;
 #endif
 
     object_class_property_add(oc, "family", "int",
