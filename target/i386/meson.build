@@ -18,6 +18,7 @@ i386_system_ss.add(files(
   'arch_memory_mapping.c',
   'machine.c',
   'monitor.c',
+  'core.c',
   'cpu-apic.c',
   'cpu-sysemu.c',
 ))
