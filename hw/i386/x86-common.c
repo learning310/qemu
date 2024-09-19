@@ -53,14 +53,107 @@
 /* Physical Address of PVH entry point read from kernel ELF NOTE */
 static size_t pvh_start_addr;
 
-static void x86_cpu_new(X86MachineState *x86ms, int64_t apic_id, Error **errp)
+static int x86_cpu_get_topo_id(const X86CPUTopoIDs *topo_ids,
+                               CpuTopologyLevel level)
 {
-    Object *cpu = object_new(MACHINE(x86ms)->cpu_type);
+    switch (level) {
+    case CPU_TOPOLOGY_LEVEL_THREAD:
+        return topo_ids->smt_id;
+    case CPU_TOPOLOGY_LEVEL_CORE:
+        return topo_ids->core_id;
+    case CPU_TOPOLOGY_LEVEL_MODULE:
+        return topo_ids->module_id;
+    case CPU_TOPOLOGY_LEVEL_DIE:
+        return topo_ids->die_id;
+    case CPU_TOPOLOGY_LEVEL_SOCKET:
+        return topo_ids->pkg_id;
+    default:
+        g_assert_not_reached();
+    }
+
+    return -1;
+}
+
+typedef struct SearchCoreCb {
+    const X86CPUTopoIDs *topo_ids;
+    const CPUTopoState *parent;
+} SearchCoreCb;
+
+static int x86_search_topo_parent(DeviceState *dev, void *opaque)
+{
+    CPUTopoState *topo = CPU_TOPO(dev);
+    CpuTopologyLevel level = GET_CPU_TOPO_LEVEL(topo);
+    SearchCoreCb *cb = opaque;
+    int topo_id, index;
+
+    topo_id = x86_cpu_get_topo_id(cb->topo_ids, level);
+    index = cpu_topo_get_index(topo);
+
+    if (topo_id < 0) {
+        error_report("Invalid %s-id: %d",
+                     CpuTopologyLevel_str(level), topo_id);
+        error_printf("Try to set the %s-id in [0-%d].\n",
+                     CpuTopologyLevel_str(level),
+                     cpu_topo_get_instances_num(topo) - 1);
+        return TOPO_FOREACH_ERR;
+    }
+
+    if (topo_id == index) {
+        if (level == CPU_TOPOLOGY_LEVEL_CORE) {
+            cb->parent = topo;
+            /* The error result could exit directly. */
+            return TOPO_FOREACH_ERR;
+        }
+        return TOPO_FOREACH_CONTINUE;
+    }
+    return TOPO_FOREACH_END;
+}
+
+static BusState *x86_find_topo_bus(MachineState *ms, X86CPUTopoIDs *topo_ids)
+{
+    SearchCoreCb cb;
+
+    cb.topo_ids = topo_ids;
+    cb.parent = NULL;
+    qbus_walk_children(BUS(&ms->topo->bus), x86_search_topo_parent,
+                       NULL, NULL, NULL, &cb);
+
+    if (!cb.parent) {
+        return NULL;
+    }
+
+    return BUS(cb.parent->bus);
+}
+
+static void x86_cpu_new(X86MachineState *x86ms, int index,
+                        int64_t apic_id, Error **errp)
+{
+    MachineState *ms = MACHINE(x86ms);
+    MachineClass *mc = MACHINE_GET_CLASS(ms);
+    Object *cpu = object_new(ms->cpu_type);
+    DeviceState *dev = DEVICE(cpu);
+    BusState *bus = NULL;
+
+    /*
+     * Once x86 machine supports topo_tree_supported, x86 CPU would
+     * also have bus_type.
+     */
+    if (mc->smp_props.topo_tree_supported) {
+        X86CPUTopoIDs topo_ids;
+        X86CPUTopoInfo topo_info;
+
+        init_topo_info(&topo_info, x86ms);
+        x86_topo_ids_from_apicid(apic_id, &topo_info, &topo_ids);
+        bus = x86_find_topo_bus(ms, &topo_ids);
+
+        /* Only with dev->id, CPU can be inserted into topology tree. */
+        dev->id = g_strdup_printf("%s[%d]", ms->cpu_type, index);
+    }
 
     if (!object_property_set_uint(cpu, "apic-id", apic_id, errp)) {
         goto out;
     }
-    qdev_realize(DEVICE(cpu), NULL, errp);
+    qdev_realize(dev, bus, errp);
 
 out:
     object_unref(cpu);
@@ -111,7 +204,7 @@ void x86_cpus_init(X86MachineState *x86ms, int default_cpu_version)
 
     possible_cpus = mc->possible_cpu_arch_ids(ms);
     for (i = 0; i < ms->smp.cpus; i++) {
-        x86_cpu_new(x86ms, possible_cpus->cpus[i].arch_id, &error_fatal);
+        x86_cpu_new(x86ms, i, possible_cpus->cpus[i].arch_id, &error_fatal);
     }
 }
 
