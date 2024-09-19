@@ -1638,6 +1638,11 @@ void machine_run_board_init(MachineState *machine, const char *mem_path, Error *
                                    "on", false);
     }
 
+    if (machine_class->smp_props.topo_tree_supported &&
+        !machine_create_topo_tree(machine, errp)) {
+        return;
+    }
+
     accel_init_interfaces(ACCEL_GET_CLASS(machine->accelerator));
     machine_class->init(machine);
     phase_advance(PHASE_MACHINE_INITIALIZED);

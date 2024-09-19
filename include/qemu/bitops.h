@@ -631,4 +631,9 @@ static inline uint64_t half_unshuffle64(uint64_t x)
     return x;
 }
 
+#define FOR_EACH_SET_BIT(bit, addr, size)               \
+    for ((bit) = find_first_bit((addr), (size));        \
+         (bit) < (size);                                \
+         (bit) = find_next_bit((addr), (size), (bit) + 1))
+
 #endif

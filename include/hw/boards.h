@@ -155,6 +155,7 @@ typedef struct {
  *                    supported by the machine
  * @topo_tree_supported - whether QOM topology tree is supported by the
  *                        machine
+ * @arch_id_topo_level - topology granularity for possible_cpus[]
  */
 typedef struct {
     bool prefer_sockets;
@@ -166,6 +167,7 @@ typedef struct {
     bool modules_supported;
     bool cache_supported[CACHE_LEVEL_AND_TYPE__MAX];
     bool topo_tree_supported;
+    CpuTopologyLevel arch_id_topo_level;
 } SMPCompatProps;
 
 /**

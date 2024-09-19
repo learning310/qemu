@@ -69,6 +69,11 @@ struct CPUSlot {
     DeviceListener listener;
 };
 
+#define TOPO_FOREACH_END             1
+#define TOPO_FOREACH_CONTINUE        0
+#define TOPO_FOREACH_ERR             -1
+
 void machine_plug_cpu_slot(MachineState *ms);
+bool machine_create_topo_tree(MachineState *ms, Error **errp);
 
 #endif /* CPU_SLOT_H */
