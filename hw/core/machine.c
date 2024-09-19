@@ -966,6 +966,30 @@ static void machine_set_smp_cache(Object *obj, Visitor *v, const char *name,
     qapi_free_SmpCachePropertiesList(caches);
 }
 
+static bool machine_get_custom_topo(Object *obj, Error **errp)
+{
+    MachineState *ms = MACHINE(obj);
+
+    if (!ms->topo) {
+        error_setg(errp, "machine doesn't support custom topology");
+        return false;
+    }
+
+    return ms->topo->custom_topo_enabled;
+}
+
+static void machine_set_custom_topo(Object *obj, bool value, Error **errp)
+{
+    MachineState *ms = MACHINE(obj);
+
+    if (!ms->topo) {
+        error_setg(errp, "machine doesn't support custom topology");
+        return;
+    }
+
+    ms->topo->custom_topo_enabled = value;
+}
+
 static void machine_get_boot(Object *obj, Visitor *v, const char *name,
                             void *opaque, Error **errp)
 {
@@ -1240,6 +1264,15 @@ static void machine_initfn(Object *obj)
     }
 
     ms->topo = NULL;
+    if (mc->smp_props.topo_tree_supported &&
+        mc->smp_props.custom_topo_supported) {
+        object_property_add_bool(obj, "custom-topo",
+                                 machine_get_custom_topo,
+                                 machine_set_custom_topo);
+        object_property_set_description(obj, "custom-topo",
+                                        "Set on/off to enable/disable "
+                                        "user custom CPU topology tree");
+    }
 
     machine_copy_boot_config(ms, &(BootConfiguration){ 0 });
 }

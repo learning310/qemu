@@ -13,7 +13,6 @@ hwcore_ss.add(files(
 ))
 
 common_ss.add(files('cpu-common.c'))
-common_ss.add(files('machine-smp.c'))
 system_ss.add(when: 'CONFIG_FITLOADER', if_true: files('loader-fit.c'))
 system_ss.add(when: 'CONFIG_GENERIC_LOADER', if_true: files('generic-loader.c'))
 system_ss.add(when: 'CONFIG_GUEST_LOADER', if_true: files('guest-loader.c'))
@@ -33,6 +32,7 @@ system_ss.add(files(
   'loader.c',
   'machine-hmp-cmds.c',
   'machine-qmp-cmds.c',
+  'machine-smp.c',
   'machine.c',
   'nmi.c',
   'null-machine.c',

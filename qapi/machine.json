@@ -1695,6 +1695,21 @@
 #
 # @threads: number of threads per core
 #
+# @maxsockets: maximum number of sockets allowed to be created per
+#     parent container in custom CPU topology tree (since 10.0)
+#
+# @maxdies: maximum number of dies allowed to be created per parent
+#     container in custom CPU topology tree (since 10.0)
+#
+# @maxmodules: maximum number of modules allowed to be created per
+#     parent container in custom CPU topology tree (since 10.0)
+#
+# @maxcores: maximum number of cores allowed to be created per parent
+#     container in custom CPU topology tree (since 10.0)
+#
+# @maxthreads: maximum number of threads allowed to be created per
+#     parent container in custom CPU topology tree (since 10.0)
+#
 # Since: 6.1
 ##
 { 'struct': 'SMPConfiguration', 'data': {
@@ -1707,7 +1722,12 @@
      '*modules': 'int',
      '*cores': 'int',
      '*threads': 'int',
-     '*maxcpus': 'int' } }
+     '*maxcpus': 'int',
+     '*maxsockets': 'int',
+     '*maxdies': 'int',
+     '*maxmodules': 'int',
+     '*maxcores': 'int',
+     '*maxthreads': 'int' } }
 
 ##
 # @x-query-irq:

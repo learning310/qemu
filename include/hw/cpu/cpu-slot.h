@@ -24,10 +24,13 @@
  *                   that are currently inserted in CPU slot
  * @max_instances: Maximum number of topological instances at the same level
  *                 under the parent topological container
+ * @max_limit: Maximum limitation of topological instances at the same level
+ *             under the parent topological container
  */
 typedef struct CPUTopoStatEntry {
     int total_instances;
     int max_instances;
+    int max_limit;
 } CPUTopoStatEntry;
 
 /**
@@ -54,6 +57,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(CPUSlot, CPU_SLOT)
  * @stat: Topological statistics for topology tree.
  * @bus: CPU bus to add the children topology device.
  * @supported_levels: Supported topology levels for topology tree.
+ * @custom_topo_enabled: Whether user to create custom topology tree.
  * @listener: Hooks to listen realize() and unrealize() of topology
  *            device.
  */
@@ -65,6 +69,7 @@ struct CPUSlot {
     CPUBusState bus;
     CPUTopoStat stat;
     DECLARE_BITMAP(supported_levels, CPU_TOPOLOGY_LEVEL__MAX);
+    bool custom_topo_enabled;
 
     DeviceListener listener;
 };
@@ -75,5 +80,9 @@ struct CPUSlot {
 
 void machine_plug_cpu_slot(MachineState *ms);
 bool machine_create_topo_tree(MachineState *ms, Error **errp);
+int get_max_topo_by_level(const MachineState *ms, CpuTopologyLevel level);
+bool machine_parse_custom_topo_config(MachineState *ms,
+                                      const SMPConfiguration *config,
+                                      Error **errp);
 
 #endif /* CPU_SLOT_H */

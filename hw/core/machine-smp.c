@@ -259,6 +259,8 @@ void machine_parse_smp_config(MachineState *ms,
                    mc->name, mc->max_cpus);
         return;
     }
+
+    machine_parse_custom_topo_config(ms, config, errp);
 }
 
 static bool machine_check_topo_support(MachineState *ms,

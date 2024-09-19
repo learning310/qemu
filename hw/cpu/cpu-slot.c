@@ -165,6 +165,11 @@ void machine_plug_cpu_slot(MachineState *ms)
         set_bit(CPU_TOPOLOGY_LEVEL_DIE, slot->supported_levels);
     }
 
+    /* Initizlize max_limit to 1, as members of CpuTopology. */
+    for (int i = 0; i < CPU_TOPOLOGY_LEVEL__MAX; i++) {
+        slot->stat.entries[i].max_limit = 1;
+    }
+
     ms->topo = slot;
     object_property_add_child(container_get(OBJECT(ms), "/peripheral"),
                               "cpu-slot", OBJECT(ms->topo));
@@ -295,6 +300,11 @@ bool machine_create_topo_tree(MachineState *ms, Error **errp)
         return false;
     }
 
+    /* User will customize topology tree. */
+    if (slot->custom_topo_enabled) {
+        return true;
+    }
+
     /*
      * Don't support full topology tree.
      * Just use slot to collect topology device.
@@ -321,6 +331,114 @@ bool machine_create_topo_tree(MachineState *ms, Error **errp)
     if (qdev_walk_children(DEVICE(slot), create_smp_topo_children,
                            NULL, NULL, NULL, &cb) < 0) {
         return false;
+    }
+
+    return true;
+}
+
+int get_max_topo_by_level(const MachineState *ms, CpuTopologyLevel level)
+{
+    if (!ms->topo || !ms->topo->custom_topo_enabled) {
+        return get_smp_info_by_level(&ms->smp, level);
+    }
+    return ms->topo->stat.entries[level].max_limit;
+}
+
+bool machine_parse_custom_topo_config(MachineState *ms,
+                                      const SMPConfiguration *config,
+                                      Error **errp)
+{
+    MachineClass *mc = MACHINE_GET_CLASS(ms);
+    CPUSlot *slot = ms->topo;
+    bool is_valid;
+    int maxcpus;
+
+    if (!slot) {
+        return true;
+    }
+
+    is_valid = config->has_maxsockets && config->maxsockets;
+    if (mc->smp_props.custom_topo_supported) {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_SOCKET].max_limit =
+            is_valid ? config->maxsockets : ms->smp.sockets;
+    } else if (is_valid) {
+        error_setg(errp, "maxsockets > 0 not supported "
+                   "by this machine's CPU topology");
+        return false;
+    } else {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_SOCKET].max_limit =
+            ms->smp.sockets;
+    }
+
+    is_valid = config->has_maxdies && config->maxdies;
+    if (mc->smp_props.custom_topo_supported &&
+        mc->smp_props.dies_supported) {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_DIE].max_limit =
+            is_valid ? config->maxdies : ms->smp.dies;
+    } else if (is_valid) {
+        error_setg(errp, "maxdies > 0 not supported "
+                   "by this machine's CPU topology");
+        return false;
+    } else {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_DIE].max_limit =
+            ms->smp.dies;
+    }
+
+    is_valid = config->has_maxmodules && config->maxmodules;
+    if (mc->smp_props.custom_topo_supported &&
+        mc->smp_props.modules_supported) {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_MODULE].max_limit =
+            is_valid ? config->maxmodules : ms->smp.modules;
+    } else if (is_valid) {
+        error_setg(errp, "maxmodules > 0 not supported "
+                   "by this machine's CPU topology");
+        return false;
+    } else {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_MODULE].max_limit =
+            ms->smp.modules;
+    }
+
+    is_valid = config->has_maxcores && config->maxcores;
+    if (mc->smp_props.custom_topo_supported) {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_CORE].max_limit =
+            is_valid ? config->maxcores : ms->smp.cores;
+    } else if (is_valid) {
+        error_setg(errp, "maxcores > 0 not supported "
+                   "by this machine's CPU topology");
+        return false;
+    } else {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_CORE].max_limit =
+            ms->smp.cores;
+    }
+
+    is_valid = config->has_maxthreads && config->maxthreads;
+    if (mc->smp_props.custom_topo_supported) {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_THREAD].max_limit =
+            is_valid ? config->maxthreads : ms->smp.threads;
+    } else if (is_valid) {
+        error_setg(errp, "maxthreads > 0 not supported "
+                   "by this machine's CPU topology");
+        return false;
+    } else {
+        slot->stat.entries[CPU_TOPOLOGY_LEVEL_THREAD].max_limit =
+            ms->smp.threads;
+    }
+
+    maxcpus = 1;
+    /* Initizlize max_limit to 1, as members of CpuTopology. */
+    for (int i = 0; i < CPU_TOPOLOGY_LEVEL__MAX; i++) {
+        maxcpus *= slot->stat.entries[i].max_limit;
+    }
+
+    if (!config->has_maxcpus) {
+        ms->smp.max_cpus = maxcpus;
+    } else {
+        if (maxcpus != ms->smp.max_cpus) {
+            error_setg(errp, "maxcpus (%d) should be equal to "
+                       "the product of the remaining max parameters (%d)",
+                       ms->smp.max_cpus, maxcpus);
+            return false;
+        }
     }
 
     return true;

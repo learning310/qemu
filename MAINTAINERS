@@ -1901,6 +1901,7 @@ F: include/hw/cpu/die.h
 F: include/hw/cpu/module.h
 F: include/hw/cpu/socket.h
 F: include/sysemu/numa.h
+F: stubs/machine-stubs.c
 F: tests/functional/test_cpu_queries.py
 F: tests/functional/test_empty_cpu_model.py
 F: tests/unit/test-smp-parse.c
