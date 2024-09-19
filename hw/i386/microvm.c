@@ -671,6 +671,7 @@ static void microvm_class_init(ObjectClass *oc, void *data)
     mc->reset = microvm_machine_reset;
 
     mc->post_init = microvm_machine_state_post_init;
+    mc->smp_props.custom_topo_supported = true;
 
     /* hotplug (for cpu coldplug) */
     mc->get_hotplug_handler = microvm_get_hotplug_handler;

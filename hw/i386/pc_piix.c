@@ -473,6 +473,7 @@ static void pc_i440fx_machine_options(MachineClass *m)
     m->no_floppy = !module_object_class_by_name(TYPE_ISA_FDC);
     m->no_parallel = !module_object_class_by_name(TYPE_ISA_PARALLEL);
     m->post_init = pc_post_init1;
+    m->smp_props.custom_topo_supported = true;
     machine_class_allow_dynamic_sysbus_dev(m, TYPE_RAMFB_DEVICE);
     machine_class_allow_dynamic_sysbus_dev(m, TYPE_VMBUS_BRIDGE);
 
