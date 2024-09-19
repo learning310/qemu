@@ -208,6 +208,65 @@ void x86_cpus_init(X86MachineState *x86ms, int default_cpu_version)
     }
 }
 
+static void x86_fixup_topo_ids(MachineState *ms, X86CPU *cpu)
+{
+    /*
+     * die-id was optional in QEMU 4.0 and older, so keep it optional
+     * if there's only one die per socket.
+     */
+    if (cpu->module_id < 0 && ms->smp.modules == 1) {
+        cpu->module_id = 0;
+    }
+
+    /*
+     * module-id was optional in QEMU 9.0 and older, so keep it optional
+     * if there's only one module per die.
+     */
+    if (cpu->die_id < 0 && ms->smp.dies == 1) {
+        cpu->die_id = 0;
+    }
+}
+
+BusState *x86_cpu_get_parent_bus(DeviceState *dev)
+{
+    MachineState *ms = MACHINE(qdev_get_machine());
+    X86MachineState *x86ms = X86_MACHINE(ms);
+    X86CPU *cpu = X86_CPU(dev);
+    X86CPUTopoIDs topo_ids;
+    X86CPUTopoInfo topo_info;
+    BusState *bus;
+
+    x86_fixup_topo_ids(ms, cpu);
+    init_topo_info(&topo_info, x86ms);
+
+    if (cpu->apic_id == UNASSIGNED_APIC_ID) {
+        /* TODO: Make the thread_id and bus index of CPU the same. */
+        topo_ids.smt_id = cpu->thread_id;
+        topo_ids.core_id = cpu->core_id;
+        topo_ids.module_id = cpu->module_id;
+        topo_ids.die_id = cpu->die_id;
+        topo_ids.pkg_id = cpu->socket_id;
+    } else {
+        x86_topo_ids_from_apicid(cpu->apic_id, &topo_info, &topo_ids);
+    }
+
+    bus = x86_find_topo_bus(ms, &topo_ids);
+
+    /*
+     * If APIC ID is not set,
+     * set it based on socket/die/module/core/thread properties.
+     *
+     * The children walking result proves topo ids are valid.
+     * Though module and die are optional, topology tree will create
+     * at least 1 instance by default if the machine supports.
+     */
+    if (bus && cpu->apic_id == UNASSIGNED_APIC_ID) {
+        cpu->apic_id = x86_apicid_from_topo_ids(&topo_info, &topo_ids);
+    }
+
+    return bus;
+}
+
 void x86_rtc_set_cpus_count(ISADevice *s, uint16_t cpus_count)
 {
     MC146818RtcState *rtc = MC146818_RTC(s);
@@ -340,6 +399,7 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
     X86CPU *cpu = X86_CPU(dev);
     CPUX86State *env = &cpu->env;
     MachineState *ms = MACHINE(hotplug_dev);
+    MachineClass *mc = MACHINE_GET_CLASS(ms);
     X86MachineState *x86ms = X86_MACHINE(hotplug_dev);
     unsigned int smp_cores = ms->smp.cores;
     unsigned int smp_threads = ms->smp.threads;
@@ -374,26 +434,9 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
         set_bit(CPU_TOPOLOGY_LEVEL_DIE, env->avail_cpu_topo);
     }
 
-    /*
-     * If APIC ID is not set,
-     * set it based on socket/die/module/core/thread properties.
-     */
-    if (cpu->apic_id == UNASSIGNED_APIC_ID) {
-        /*
-         * die-id was optional in QEMU 4.0 and older, so keep it optional
-         * if there's only one die per socket.
-         */
-        if (cpu->die_id < 0 && ms->smp.dies == 1) {
-            cpu->die_id = 0;
-        }
-
-        /*
-         * module-id was optional in QEMU 9.0 and older, so keep it optional
-         * if there's only one module per die.
-         */
-        if (cpu->module_id < 0 && ms->smp.modules == 1) {
-            cpu->module_id = 0;
-        }
+    if (cpu->apic_id == UNASSIGNED_APIC_ID &&
+        !mc->smp_props.topo_tree_supported) {
+        x86_fixup_topo_ids(ms, cpu);
 
         if (cpu->socket_id < 0) {
             error_setg(errp, "CPU socket-id is not set");
@@ -409,7 +452,6 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
         } else if (cpu->die_id > ms->smp.dies - 1) {
             error_setg(errp, "Invalid CPU die-id: %u must be in range 0:%u",
                        cpu->die_id, ms->smp.dies - 1);
-            return;
         }
         if (cpu->module_id < 0) {
             error_setg(errp, "CPU module-id is not set");
@@ -442,6 +484,21 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
         topo_ids.core_id = cpu->core_id;
         topo_ids.smt_id = cpu->thread_id;
         cpu->apic_id = x86_apicid_from_topo_ids(&topo_info, &topo_ids);
+    } else if (cpu->apic_id == UNASSIGNED_APIC_ID &&
+               mc->smp_props.topo_tree_supported) {
+        /*
+         * For this case, CPU is added by specifying the bus. Under the
+         * topology tree, specifying only the bus should be feasible, but
+         * the topology represented by the bus, topo ids, or apic id must
+         * be consistent.
+         *
+         * To simplify, the case with only the bus specified is not supported
+         * at this time.
+         */
+        if (x86_cpu_get_parent_bus(dev) != dev->parent_bus) {
+            error_setg(errp, "Invalid CPU topology ids");
+            return;
+        }
     }
 
     cpu_slot = x86_find_cpu_slot(MACHINE(x86ms), cpu->apic_id, &idx);

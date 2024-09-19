@@ -35,12 +35,14 @@
 #include "standard-headers/asm-x86/kvm_para.h"
 #include "hw/qdev-properties.h"
 #include "hw/i386/topology.h"
+#include "monitor/bus-finder.h"
 #ifndef CONFIG_USER_ONLY
 #include "sysemu/reset.h"
 #include "qapi/qapi-commands-machine-target.h"
 #include "exec/address-spaces.h"
 #include "hw/boards.h"
 #include "hw/i386/sgx-epc.h"
+#include "hw/i386/x86.h"
 #endif
 
 #include "disas/capstone.h"
@@ -8468,6 +8470,11 @@ static void x86_cpu_common_class_init(ObjectClass *oc, void *data)
 
     dc->user_creatable = true;
 
+#ifndef CONFIG_USER_ONLY
+    BusFinderClass *bfc = BUS_FINDER_CLASS(oc);
+    bfc->find_bus = x86_cpu_get_parent_bus;
+#endif
+
     object_class_property_add(oc, "family", "int",
                               x86_cpuid_version_get_family,
                               x86_cpuid_version_set_family, NULL, NULL);
@@ -8520,6 +8527,10 @@ static const TypeInfo x86_cpu_type_info = {
     .abstract = true,
     .class_size = sizeof(X86CPUClass),
     .class_init = x86_cpu_common_class_init,
+    .interfaces = (InterfaceInfo[]) {
+        { TYPE_BUS_FINDER },
+        { }
+    }
 };
 
 /* "base" CPU model, used by query-cpu-model-expansion */

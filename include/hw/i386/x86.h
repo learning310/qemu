@@ -138,6 +138,8 @@ void x86_load_linux(X86MachineState *x86ms,
 bool x86_machine_is_smm_enabled(const X86MachineState *x86ms);
 bool x86_machine_is_acpi_enabled(const X86MachineState *x86ms);
 
+BusState *x86_cpu_get_parent_bus(DeviceState *dev);
+
 /* Global System Interrupts */
 
 #define ACPI_BUILD_PCI_IRQS ((1<<5) | (1<<9) | (1<<10) | (1<<11))
