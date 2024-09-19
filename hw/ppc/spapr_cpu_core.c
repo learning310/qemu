@@ -338,6 +338,7 @@ static void spapr_cpu_core_realize(DeviceState *dev, Error **errp)
         (SpaprMachineState *) object_dynamic_cast(qdev_get_machine(),
                                                   TYPE_SPAPR_MACHINE);
     SpaprCpuCore *sc = SPAPR_CPU_CORE(OBJECT(dev));
+    SpaprCpuCoreClass *scc = SPAPR_CPU_CORE_GET_CLASS(sc);
     CPUCore *cc = CPU_CORE(OBJECT(dev));
     int i;
 
@@ -345,6 +346,8 @@ static void spapr_cpu_core_realize(DeviceState *dev, Error **errp)
         error_setg(errp, TYPE_SPAPR_CPU_CORE " needs a pseries machine");
         return;
     }
+
+    scc->parent_realize(dev, errp);
 
     qemu_register_reset(spapr_cpu_core_reset_handler, sc);
     sc->threads = g_new0(PowerPCCPU *, cc->nr_threads);
@@ -376,11 +379,18 @@ static void spapr_cpu_core_class_init(ObjectClass *oc, void *data)
     DeviceClass *dc = DEVICE_CLASS(oc);
     SpaprCpuCoreClass *scc = SPAPR_CPU_CORE_CLASS(oc);
 
-    dc->realize = spapr_cpu_core_realize;
     dc->unrealize = spapr_cpu_core_unrealize;
     device_class_set_legacy_reset(dc, spapr_cpu_core_reset);
     device_class_set_props(dc, spapr_cpu_core_properties);
+    dc->hotpluggable = true;
     scc->cpu_type = data;
+    device_class_set_parent_realize(dc, spapr_cpu_core_realize,
+                                    &scc->parent_realize);
+    /*
+     * Avoid ppc that do not support topology device trees from
+     * encountering error when creating cores.
+     */
+    dc->bus_type = NULL;
 }
 
 #define DEFINE_SPAPR_CPU_CORE_TYPE(cpu_model) \

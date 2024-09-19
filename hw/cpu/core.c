@@ -79,19 +79,20 @@ static void cpu_core_instance_init(Object *obj)
 
 static void cpu_core_class_init(ObjectClass *oc, void *data)
 {
-    DeviceClass *dc = DEVICE_CLASS(oc);
+    CPUTopoClass *tc = CPU_TOPO_CLASS(oc);
 
-    set_bit(DEVICE_CATEGORY_CPU, dc->categories);
+    /* TODO: Offload "core-id" and "nr-threads" to ppc-specific core. */
     object_class_property_add(oc, "core-id", "int", core_prop_get_core_id,
                               core_prop_set_core_id, NULL, NULL);
     object_class_property_add(oc, "nr-threads", "int", core_prop_get_nr_threads,
                               core_prop_set_nr_threads, NULL, NULL);
+
+    tc->level = CPU_TOPOLOGY_LEVEL_CORE;
 }
 
 static const TypeInfo cpu_core_type_info = {
     .name = TYPE_CPU_CORE,
-    .parent = TYPE_DEVICE,
-    .abstract = true,
+    .parent = TYPE_CPU_TOPO,
     .class_init = cpu_core_class_init,
     .instance_size = sizeof(CPUCore),
     .instance_init = cpu_core_instance_init,

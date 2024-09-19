@@ -9,6 +9,7 @@
 #ifndef HW_CPU_CORE_H
 #define HW_CPU_CORE_H
 
+#include "hw/cpu/cpu-topology.h"
 #include "hw/qdev-core.h"
 #include "qom/object.h"
 
@@ -18,7 +19,7 @@ OBJECT_DECLARE_SIMPLE_TYPE(CPUCore, CPU_CORE)
 
 struct CPUCore {
     /*< private >*/
-    DeviceState parent_obj;
+    CPUTopoState parent_obj;
 
     /*< public >*/
     int core_id;

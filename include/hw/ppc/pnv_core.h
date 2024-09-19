@@ -71,10 +71,11 @@ struct PnvCore {
 };
 
 struct PnvCoreClass {
-    DeviceClass parent_class;
+    CPUTopoClass parent_class;
 
     const MemoryRegionOps *xscom_ops;
     uint64_t xscom_size;
+    DeviceRealize parent_realize;
 };
 
 #define PNV_CORE_TYPE_SUFFIX "-" TYPE_PNV_CORE
