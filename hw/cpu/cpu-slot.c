@@ -138,3 +138,37 @@ static void cpu_slot_register_types(void)
 }
 
 type_init(cpu_slot_register_types)
+
+void machine_plug_cpu_slot(MachineState *ms)
+{
+    MachineClass *mc = MACHINE_GET_CLASS(ms);
+    CPUSlot *slot;
+
+    slot = CPU_SLOT(qdev_new(TYPE_CPU_SLOT));
+    set_bit(CPU_TOPOLOGY_LEVEL_THREAD, slot->supported_levels);
+    set_bit(CPU_TOPOLOGY_LEVEL_CORE, slot->supported_levels);
+    set_bit(CPU_TOPOLOGY_LEVEL_SOCKET, slot->supported_levels);
+
+    /*
+     * Now just consider the levels that x86 supports.
+     * TODO: Supports other levels.
+     */
+    if (mc->smp_props.modules_supported) {
+        set_bit(CPU_TOPOLOGY_LEVEL_MODULE, slot->supported_levels);
+    }
+
+    if (mc->smp_props.dies_supported) {
+        set_bit(CPU_TOPOLOGY_LEVEL_DIE, slot->supported_levels);
+    }
+
+    ms->topo = slot;
+    object_property_add_child(container_get(OBJECT(ms), "/peripheral"),
+                              "cpu-slot", OBJECT(ms->topo));
+    DEVICE(ms->topo)->id = g_strdup_printf("%s", "cpu-slot");
+
+    sysbus_realize(SYS_BUS_DEVICE(slot), &error_abort);
+
+    if (mc->get_hotplug_handler) {
+        qbus_set_hotplug_handler(BUS(&slot->bus), OBJECT(ms));
+    }
+}

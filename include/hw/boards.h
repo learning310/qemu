@@ -10,6 +10,7 @@
 #include "qemu/module.h"
 #include "qom/object.h"
 #include "hw/core/cpu.h"
+#include "hw/cpu/cpu-slot.h"
 
 #define TYPE_MACHINE_SUFFIX "-machine"
 
@@ -152,6 +153,8 @@ typedef struct {
  * @modules_supported - whether modules are supported by the machine
  * @cache_supported - whether cache topologies (l1d, l1i, l2 and l3) are
  *                    supported by the machine
+ * @topo_tree_supported - whether QOM topology tree is supported by the
+ *                        machine
  */
 typedef struct {
     bool prefer_sockets;
@@ -162,6 +165,7 @@ typedef struct {
     bool drawers_supported;
     bool modules_supported;
     bool cache_supported[CACHE_LEVEL_AND_TYPE__MAX];
+    bool topo_tree_supported;
 } SMPCompatProps;
 
 /**
@@ -431,6 +435,11 @@ struct MachineState {
     CPUArchIdList *possible_cpus;
     CpuTopology smp;
     SmpCache smp_cache;
+    /*
+     * TODO: get rid of "smp" and merge it into "topo" when all arches
+     * support QOM topology.
+     */
+    CPUSlot *topo;
     struct NVDIMMState *nvdimms_state;
     struct NumaState *numa_state;
 };

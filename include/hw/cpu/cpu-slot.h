@@ -69,4 +69,6 @@ struct CPUSlot {
     DeviceListener listener;
 };
 
+void machine_plug_cpu_slot(MachineState *ms);
+
 #endif /* CPU_SLOT_H */

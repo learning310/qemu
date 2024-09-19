@@ -1239,6 +1239,8 @@ static void machine_initfn(Object *obj)
         ms->smp_cache.props[i].topology = CPU_TOPOLOGY_LEVEL_DEFAULT;
     }
 
+    ms->topo = NULL;
+
     machine_copy_boot_config(ms, &(BootConfiguration){ 0 });
 }
 

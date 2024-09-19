@@ -2151,6 +2151,10 @@ static void qemu_create_machine(QDict *qdict)
                                           false, &error_abort);
         qobject_unref(default_opts);
     }
+
+    if (machine_class->smp_props.topo_tree_supported) {
+        machine_plug_cpu_slot(current_machine);
+    }
 }
 
 static int global_init_func(void *opaque, QemuOpts *opts, Error **errp)
