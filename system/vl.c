@@ -1211,8 +1211,9 @@ static int device_help_func(void *opaque, QemuOpts *opts, Error **errp)
 static int device_init_func(void *opaque, QemuOpts *opts, Error **errp)
 {
     DeviceState *dev;
+    long *category = opaque;
 
-    dev = qdev_device_add(opts, NULL, errp);
+    dev = qdev_device_add(opts, category, errp);
     if (!dev && *errp) {
         error_report_err(*errp);
         return -1;
@@ -2623,6 +2624,36 @@ static void qemu_init_displays(void)
     }
 }
 
+static void qemu_add_devices(long *category)
+{
+    DeviceOption *opt;
+
+    qemu_opts_foreach(qemu_find_opts("device"),
+                      device_init_func, category, &error_fatal);
+    QTAILQ_FOREACH(opt, &device_opts, next) {
+        DeviceState *dev;
+        loc_push_restore(&opt->loc);
+        /*
+         * TODO Eventually we should call qmp_device_add() here to make sure it
+         * behaves the same, but QMP still has to accept incorrectly typed
+         * options until libvirt is fixed and we want to be strict on the CLI
+         * from the start, so call qdev_device_add_from_qdict() directly for
+         * now.
+         */
+        dev = qdev_device_add_from_qdict(opt->opts, category,
+                                         true, &error_fatal);
+        object_unref(OBJECT(dev));
+        loc_pop(&opt->loc);
+    }
+}
+
+static void qemu_add_cli_devices_early(void)
+{
+    long category = DEVICE_CATEGORY_CPU_DEF;
+
+    qemu_add_devices(&category);
+}
+
 static void qemu_init_board(void)
 {
     /* process plugin before CPUs are created, but once -smp has been parsed */
@@ -2631,6 +2662,9 @@ static void qemu_init_board(void)
     /* From here on we enter MACHINE_PHASE_INITIALIZED.  */
     machine_run_board_init(current_machine, mem_path, &error_fatal);
 
+    /* Create CPU topology device if any. */
+    qemu_add_cli_devices_early();
+
     drive_check_orphaned();
 
     realtime_init();
@@ -2638,8 +2672,6 @@ static void qemu_init_board(void)
 
 static void qemu_create_cli_devices(void)
 {
-    DeviceOption *opt;
-
     soundhw_init();
 
     qemu_opts_foreach(qemu_find_opts("fw_cfg"),
@@ -2653,22 +2685,7 @@ static void qemu_create_cli_devices(void)
 
     /* init generic devices */
     rom_set_order_override(FW_CFG_ORDER_OVERRIDE_DEVICE);
-    qemu_opts_foreach(qemu_find_opts("device"),
-                      device_init_func, NULL, &error_fatal);
-    QTAILQ_FOREACH(opt, &device_opts, next) {
-        DeviceState *dev;
-        loc_push_restore(&opt->loc);
-        /*
-         * TODO Eventually we should call qmp_device_add() here to make sure it
-         * behaves the same, but QMP still has to accept incorrectly typed
-         * options until libvirt is fixed and we want to be strict on the CLI
-         * from the start, so call qdev_device_add_from_qdict() directly for
-         * now.
-         */
-        dev = qdev_device_add_from_qdict(opt->opts, NULL, true, &error_fatal);
-        object_unref(OBJECT(dev));
-        loc_pop(&opt->loc);
-    }
+    qemu_add_devices(NULL);
     rom_reset_order_override();
 }
 
