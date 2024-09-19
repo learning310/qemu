@@ -57,25 +57,23 @@ static void bus_free_bus_child(BusChild *kid)
 
 static void bus_remove_child(BusState *bus, DeviceState *child)
 {
-    BusChild *kid;
+    BusChild *kid = child->bus_node;
+    char name[32];
 
-    QTAILQ_FOREACH(kid, &bus->children, sibling) {
-        if (kid->child == child) {
-            char name[32];
-
-            snprintf(name, sizeof(name), "child[%d]", kid->index);
-            QTAILQ_REMOVE_RCU(&bus->children, kid, sibling);
-
-            bus->num_children--;
-
-            /* This gives back ownership of kid->child back to us.  */
-            object_property_del(OBJECT(bus), name);
-
-            /* free the bus kid, when it is safe to do so*/
-            call_rcu(kid, bus_free_bus_child, rcu);
-            break;
-        }
+    if (!kid) {
+        return;
     }
+
+    snprintf(name, sizeof(name), "child[%d]", kid->index);
+    QTAILQ_REMOVE_RCU(&bus->children, kid, sibling);
+    child->bus_node = NULL;
+    bus->num_children--;
+
+    /* This gives back ownership of kid->child back to us.  */
+    object_property_del(OBJECT(bus), name);
+
+    /* free the bus kid, when it is safe to do so*/
+    call_rcu(kid, bus_free_bus_child, rcu);
 }
 
 static void bus_add_child(BusState *bus, DeviceState *child)
@@ -86,6 +84,7 @@ static void bus_add_child(BusState *bus, DeviceState *child)
     bus->num_children++;
     kid->index = bus->max_index++;
     kid->child = child;
+    child->bus_node = kid;
     object_ref(OBJECT(kid->child));
 
     QTAILQ_INSERT_HEAD_RCU(&bus->children, kid, sibling);

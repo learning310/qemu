@@ -254,6 +254,10 @@ struct DeviceState {
      */
     BusState *parent_bus;
     /**
+     * @bus_node: bus node inserted in parent bus
+     */
+    BusChild *bus_node;
+    /**
      * @gpios: QLIST of named GPIOs the device provides.
      */
     NamedGPIOListHead gpios;
