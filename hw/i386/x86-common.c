@@ -202,11 +202,15 @@ void x86_cpus_init(X86MachineState *x86ms, int default_cpu_version)
 
 static void x86_fixup_topo_ids(MachineState *ms, X86CPU *cpu)
 {
+    int max_modules, max_dies;
+
+    max_modules = get_max_topo_by_level(ms, CPU_TOPOLOGY_LEVEL_MODULE);
+    max_dies = get_max_topo_by_level(ms, CPU_TOPOLOGY_LEVEL_DIE);
     /*
      * die-id was optional in QEMU 4.0 and older, so keep it optional
      * if there's only one die per socket.
      */
-    if (cpu->module_id < 0 && ms->smp.modules == 1) {
+    if (cpu->module_id < 0 && max_modules == 1) {
         cpu->module_id = 0;
     }
 
@@ -214,7 +218,7 @@ static void x86_fixup_topo_ids(MachineState *ms, X86CPU *cpu)
      * module-id was optional in QEMU 9.0 and older, so keep it optional
      * if there's only one module per die.
      */
-    if (cpu->die_id < 0 && ms->smp.dies == 1) {
+    if (cpu->die_id < 0 && max_dies == 1) {
         cpu->die_id = 0;
     }
 }
@@ -393,6 +397,7 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
     MachineState *ms = MACHINE(hotplug_dev);
     X86MachineState *x86ms = X86_MACHINE(hotplug_dev);
     X86CPUTopoInfo topo_info;
+    int max_modules, max_dies;
 
     if (!object_dynamic_cast(OBJECT(cpu), ms->cpu_type)) {
         error_setg(errp, "Invalid CPU type, expected cpu type: '%s'",
@@ -413,13 +418,15 @@ void x86_cpu_pre_plug(HotplugHandler *hotplug_dev,
 
     init_topo_info(&topo_info, x86ms);
 
-    if (ms->smp.modules > 1) {
-        env->nr_modules = ms->smp.modules;
+    max_modules = get_max_topo_by_level(ms, CPU_TOPOLOGY_LEVEL_MODULE);
+    if (max_modules > 1) {
+        env->nr_modules = max_modules;
         set_bit(CPU_TOPOLOGY_LEVEL_MODULE, env->avail_cpu_topo);
     }
 
-    if (ms->smp.dies > 1) {
-        env->nr_dies = ms->smp.dies;
+    max_dies = get_max_topo_by_level(ms, CPU_TOPOLOGY_LEVEL_DIE);
+    if (max_dies > 1) {
+        env->nr_dies = max_dies;
         set_bit(CPU_TOPOLOGY_LEVEL_DIE, env->avail_cpu_topo);
     }
 
