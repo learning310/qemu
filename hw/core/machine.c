@@ -1645,6 +1645,16 @@ void machine_run_board_init(MachineState *machine, const char *mem_path, Error *
 
     accel_init_interfaces(ACCEL_GET_CLASS(machine->accelerator));
     machine_class->init(machine);
+}
+
+void machine_run_board_post_init(MachineState *machine, Error **errp)
+{
+    MachineClass *machine_class = MACHINE_GET_CLASS(machine);
+
+    if (machine_class->post_init) {
+        machine_class->post_init(machine);
+    }
+
     phase_advance(PHASE_MACHINE_INITIALIZED);
 }
 
