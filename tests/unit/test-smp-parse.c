@@ -801,8 +801,8 @@ static void check_parse(MachineState *ms, const SMPConfiguration *config,
     /* call the generic parser */
     machine_parse_smp_config(ms, config, &err);
 
-    ms_threads_per_socket = machine_topo_get_threads_per_socket(ms);
-    ms_cores_per_socket = machine_topo_get_cores_per_socket(ms);
+    ms_threads_per_socket = machine_topo_get_threads_per_socket_old(ms);
+    ms_cores_per_socket = machine_topo_get_cores_per_socket_old(ms);
     output_topo_str = cpu_topology_to_string(&ms->smp,
                                              ms_threads_per_socket,
                                              ms_cores_per_socket,

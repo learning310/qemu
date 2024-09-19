@@ -48,8 +48,13 @@ void machine_parse_smp_config(MachineState *ms,
 bool machine_parse_smp_cache(MachineState *ms,
                              const SmpCachePropertiesList *caches,
                              Error **errp);
-unsigned int machine_topo_get_cores_per_socket(const MachineState *ms);
-unsigned int machine_topo_get_threads_per_socket(const MachineState *ms);
+/*
+ * TODO: Drop these old helpers when cpu-slot.c could be compiled for
+ * test-smp-parse. Pls use machine_topo_get_cores_per_socket() and
+ * machine_topo_get_threads_per_socket() instead.
+ */
+unsigned int machine_topo_get_cores_per_socket_old(const MachineState *ms);
+unsigned int machine_topo_get_threads_per_socket_old(const MachineState *ms);
 CpuTopologyLevel machine_get_cache_topo_level(const MachineState *ms,
                                               CacheLevelAndType cache);
 void machine_memory_devices_init(MachineState *ms, hwaddr base, uint64_t size);

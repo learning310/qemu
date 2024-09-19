@@ -204,6 +204,8 @@ static int get_smp_info_by_level(const CpuTopology *smp_info,
         return smp_info->cores;
     case CPU_TOPOLOGY_LEVEL_MODULE:
         return smp_info->modules;
+    case CPU_TOPOLOGY_LEVEL_CLUSTER:
+        return smp_info->clusters;
     case CPU_TOPOLOGY_LEVEL_DIE:
         return smp_info->dies;
     case CPU_TOPOLOGY_LEVEL_SOCKET:
@@ -354,6 +356,22 @@ int get_max_topo_by_level(const MachineState *ms, CpuTopologyLevel level)
         return get_smp_info_by_level(&ms->smp, level);
     }
     return ms->topo->stat.entries[level].max_limit;
+}
+
+unsigned int machine_topo_get_cores_per_socket(const MachineState *ms)
+{
+    int cores = 1, i;
+
+    for (i = CPU_TOPOLOGY_LEVEL_CORE; i < CPU_TOPOLOGY_LEVEL_SOCKET; i++) {
+        cores *= get_max_topo_by_level(ms, i);
+    }
+    return cores;
+}
+
+unsigned int machine_topo_get_threads_per_socket(const MachineState *ms)
+{
+    return get_max_topo_by_level(ms, CPU_TOPOLOGY_LEVEL_THREAD) *
+           machine_topo_get_cores_per_socket(ms);
 }
 
 bool machine_parse_custom_topo_config(MachineState *ms,
