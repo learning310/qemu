@@ -1886,6 +1886,9 @@ F: hw/core/numa.c
 F: hw/cpu/cluster.c
 F: hw/cpu/cpu-slot.c
 F: hw/cpu/cpu-topology.c
+F: hw/cpu/die.c
+F: hw/cpu/module.c
+F: hw/cpu/socket.c
 F: qapi/machine.json
 F: qapi/machine-common.json
 F: qapi/machine-target.json
@@ -1894,6 +1897,9 @@ F: include/hw/core/cpu.h
 F: include/hw/cpu/cluster.h
 F: include/hw/cpu/cpu-slot.h
 F: include/hw/cpu/cpu-topology.h
+F: include/hw/cpu/die.h
+F: include/hw/cpu/module.h
+F: include/hw/cpu/socket.h
 F: include/sysemu/numa.h
 F: tests/functional/test_cpu_queries.py
 F: tests/functional/test_empty_cpu_model.py
