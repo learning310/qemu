@@ -19,49 +19,6 @@
 #include "qom/object.h"
 #include "sysemu/sysemu.h"
 
-
-/*
- * Set the QOM parent and parent bus of an object child. If the device
- * state associated with the child has an id, use it as QOM id.
- * Otherwise use object_typename[index] as QOM id.
- *
- * This helper does both operations at the same time because setting
- * a new QOM child will erase the bus parent of the device. This happens
- * because object_unparent() will call object_property_del_child(),
- * which in turn calls the property release callback prop->release if
- * it's defined. In our case this callback is set to
- * object_finalize_child_property(), which was assigned during the
- * first object_property_add_child() call. This callback will end up
- * calling device_unparent(), and this function removes the device
- * from its parent bus.
- *
- * The QOM and parent bus to be set aren´t necessarily related, so
- * let's receive both as arguments.
- */
-static bool pnv_parent_fixup(Object *parent, BusState *parent_bus,
-                             Object *child, int index,
-                             Error **errp)
-{
-    g_autofree char *default_id =
-        g_strdup_printf("%s[%d]", object_get_typename(child), index);
-    const char *dev_id = DEVICE(child)->id;
-
-    if (child->parent == parent) {
-        return true;
-    }
-
-    object_ref(child);
-    object_unparent(child);
-    object_property_add_child(parent, dev_id ? dev_id : default_id, child);
-    object_unref(child);
-
-    if (!qdev_set_parent_bus(DEVICE(child), parent_bus, errp)) {
-        return false;
-    }
-
-    return true;
-}
-
 static Object *pnv_phb_user_get_parent(PnvChip *chip, PnvPHB *phb, Error **errp)
 {
     if (phb->version == 3) {
@@ -82,6 +39,7 @@ static bool pnv_phb_user_device_init(PnvPHB *phb, Error **errp)
     PnvMachineState *pnv = PNV_MACHINE(qdev_get_machine());
     PnvChip *chip = pnv_get_chip(pnv, phb->chip_id);
     Object *parent = NULL;
+    g_autofree char *default_id = NULL;
 
     if (!chip) {
         error_setg(errp, "invalid chip id: %d", phb->chip_id);
@@ -98,8 +56,11 @@ static bool pnv_phb_user_device_init(PnvPHB *phb, Error **errp)
      * correctly the device tree. pnv_xscom_dt() needs every
      * PHB to be a child of the chip to build the DT correctly.
      */
-    if (!pnv_parent_fixup(parent, qdev_get_parent_bus(DEVICE(chip)),
-                          OBJECT(phb), phb->phb_id, errp)) {
+    default_id = g_strdup_printf("%s[%d]",
+                                 object_get_typename(OBJECT(phb)),
+                                 phb->phb_id);
+    if (!qdev_set_parent(DEVICE(phb), qdev_get_parent_bus(DEVICE(chip)),
+                         parent, default_id, errp)) {
         return false;
     }
 
@@ -246,6 +207,7 @@ static void pnv_phb_root_port_realize(DeviceState *dev, Error **errp)
     uint16_t device_id = 0;
     Error *local_err = NULL;
     int chip_id, index;
+    g_autofree char *default_id = NULL;
 
     /*
      * 'index' will be used both as a PCIE slot value and to calculate
@@ -273,8 +235,11 @@ static void pnv_phb_root_port_realize(DeviceState *dev, Error **errp)
      * parent bus. Change the QOM parent to be the same as the
      * parent bus it's already assigned to.
      */
-    if (!pnv_parent_fixup(OBJECT(bus), BUS(bus), OBJECT(dev),
-                          index, errp)) {
+    default_id = g_strdup_printf("%s[%d]",
+                                 object_get_typename(OBJECT(dev)),
+                                 index);
+    if (!qdev_set_parent(dev, BUS(bus), OBJECT(bus),
+                         default_id, errp)) {
         return;
     }
 

@@ -1011,6 +1011,9 @@ char *qdev_get_human_name(DeviceState *dev);
 /* FIXME: make this a link<> */
 bool qdev_set_parent_bus(DeviceState *dev, BusState *bus, Error **errp);
 
+bool qdev_set_parent(DeviceState *dev, BusState *bus, Object *parent,
+                     char *default_id, Error **errp);
+
 extern bool qdev_hot_removed;
 
 char *qdev_get_dev_path(DeviceState *dev);

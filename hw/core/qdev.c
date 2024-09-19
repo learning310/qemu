@@ -143,6 +143,58 @@ bool qdev_set_parent_bus(DeviceState *dev, BusState *bus, Error **errp)
     return true;
 }
 
+/*
+ * Set the QOM parent and parent bus of an object child. If the device
+ * state associated with the child has an id, use it as QOM id.
+ * Otherwise use default_id as QOM id.
+ *
+ * This helper does both operations at the same time because setting
+ * a new QOM child will erase the bus parent of the device. This happens
+ * because object_unparent() will call object_property_del_child(),
+ * which in turn calls the property release callback prop->release if
+ * it's defined. In our case this callback is set to
+ * object_finalize_child_property(), which was assigned during the
+ * first object_property_add_child() call. This callback will end up
+ * calling device_unparent(), and this function removes the device
+ * from its parent bus.
+ *
+ * The QOM and parent bus to be set aren't necessarily related, so
+ * let's receive both as arguments.
+ */
+bool qdev_set_parent(DeviceState *dev, BusState *bus, Object *parent,
+                     char *default_id, Error **errp)
+{
+    Object *child = OBJECT(dev);
+    ObjectProperty *prop;
+
+    if (!dev->id && !default_id) {
+        error_setg(errp, "unknown device id");
+        return false;
+    }
+
+    if (child->parent == parent) {
+        return true;
+    }
+
+    object_ref(child);
+    object_unparent(child);
+    prop =  object_property_add_child(parent,
+                                      dev->id ? dev->id : default_id,
+                                      child);
+    object_unref(child);
+
+    if (!prop) {
+        error_setg(errp, "couldn't change parent");
+        return false;
+    }
+
+    if (!qdev_set_parent_bus(dev, bus, errp)) {
+        return false;
+    }
+
+    return true;
+}
+
 DeviceState *qdev_new(const char *name)
 {
     ObjectClass *oc = object_class_by_name(name);
