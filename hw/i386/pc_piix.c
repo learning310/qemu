@@ -105,19 +105,9 @@ static void pc_init1(MachineState *machine, const char *pci_type)
     PCMachineState *pcms = PC_MACHINE(machine);
     PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
     X86MachineState *x86ms = X86_MACHINE(machine);
-    MemoryRegion *system_memory = get_system_memory();
-    MemoryRegion *system_io = get_system_io();
-    Object *phb = NULL;
-    ISABus *isa_bus;
-    Object *piix4_pm = NULL;
-    qemu_irq smi_irq;
-    GSIState *gsi_state;
-    MemoryRegion *ram_memory;
-    MemoryRegion *pci_memory = NULL;
-    MemoryRegion *rom_memory = system_memory;
     ram_addr_t lowmem;
-    uint64_t hole64_size = 0;
 
+    pcms->pci_type = pci_type;
     /*
      * Calculate ram split, for memory below and above 4G.  It's a bit
      * complicated for backward compatibility reasons ...
@@ -150,9 +140,9 @@ static void pc_init1(MachineState *machine, const char *pci_type)
      *    qemu -M pc,max-ram-below-4g=4G -m 3968M  -> 3968M low (=4G-128M)
      */
     if (xen_enabled()) {
-        xen_hvm_init_pc(pcms, &ram_memory);
+        xen_hvm_init_pc(pcms, &pcms->pre_config_ram);
     } else {
-        ram_memory = machine->ram;
+        pcms->pre_config_ram = machine->ram;
         if (!pcms->max_ram_below_4g) {
             pcms->max_ram_below_4g = 0xe0000000; /* default: 3.5G */
         }
@@ -182,6 +172,23 @@ static void pc_init1(MachineState *machine, const char *pci_type)
 
     pc_machine_init_sgx_epc(pcms);
     x86_cpus_init(x86ms, pcmc->default_cpu_version);
+}
+
+static void pc_post_init1(MachineState *machine)
+{
+    PCMachineState *pcms = PC_MACHINE(machine);
+    PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
+    X86MachineState *x86ms = X86_MACHINE(machine);
+    MemoryRegion *system_memory = get_system_memory();
+    MemoryRegion *system_io = get_system_io();
+    Object *phb = NULL;
+    ISABus *isa_bus;
+    Object *piix4_pm = NULL;
+    qemu_irq smi_irq;
+    GSIState *gsi_state;
+    MemoryRegion *pci_memory = NULL;
+    MemoryRegion *rom_memory = system_memory;
+    uint64_t hole64_size = 0;
 
     if (kvm_enabled()) {
         kvmclock_create(pcmc->kvmclock_create_always);
@@ -195,7 +202,7 @@ static void pc_init1(MachineState *machine, const char *pci_type)
         phb = OBJECT(qdev_new(TYPE_I440FX_PCI_HOST_BRIDGE));
         object_property_add_child(OBJECT(machine), "i440fx", phb);
         object_property_set_link(phb, PCI_HOST_PROP_RAM_MEM,
-                                 OBJECT(ram_memory), &error_fatal);
+                                 OBJECT(pcms->pre_config_ram), &error_fatal);
         object_property_set_link(phb, PCI_HOST_PROP_PCI_MEM,
                                  OBJECT(pci_memory), &error_fatal);
         object_property_set_link(phb, PCI_HOST_PROP_SYSTEM_MEM,
@@ -206,7 +213,7 @@ static void pc_init1(MachineState *machine, const char *pci_type)
                                  x86ms->below_4g_mem_size, &error_fatal);
         object_property_set_uint(phb, PCI_HOST_ABOVE_4G_MEM_SIZE,
                                  x86ms->above_4g_mem_size, &error_fatal);
-        object_property_set_str(phb, I440FX_HOST_PROP_PCI_TYPE, pci_type,
+        object_property_set_str(phb, I440FX_HOST_PROP_PCI_TYPE, pcms->pci_type,
                                 &error_fatal);
         sysbus_realize_and_unref(SYS_BUS_DEVICE(phb), &error_fatal);
 
@@ -413,6 +420,7 @@ static void pc_set_south_bridge(Object *obj, int value, Error **errp)
 static void pc_init_isa(MachineState *machine)
 {
     pc_init1(machine, NULL);
+    pc_post_init1(machine);
 }
 #endif
 
@@ -423,6 +431,7 @@ static void pc_xen_hvm_init_pci(MachineState *machine)
                 TYPE_IGD_PASSTHROUGH_I440FX_PCI_DEVICE : TYPE_I440FX_PCI_DEVICE;
 
     pc_init1(machine, pci_type);
+    pc_post_init1(machine);
 }
 
 static void pc_xen_hvm_init(MachineState *machine)
@@ -463,6 +472,7 @@ static void pc_i440fx_machine_options(MachineClass *m)
     m->default_nic = "e1000";
     m->no_floppy = !module_object_class_by_name(TYPE_ISA_FDC);
     m->no_parallel = !module_object_class_by_name(TYPE_ISA_PARALLEL);
+    m->post_init = pc_post_init1;
     machine_class_allow_dynamic_sysbus_dev(m, TYPE_RAMFB_DEVICE);
     machine_class_allow_dynamic_sysbus_dev(m, TYPE_VMBUS_BRIDGE);
 

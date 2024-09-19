@@ -463,6 +463,11 @@ static void microvm_machine_state_init(MachineState *machine)
     microvm_memory_init(mms);
 
     x86_cpus_init(x86ms, CPU_VERSION_LATEST);
+}
+
+static void microvm_machine_state_post_init(MachineState *machine)
+{
+    MicrovmMachineState *mms = MICROVM_MACHINE(machine);
 
     microvm_devices_init(mms);
 }
@@ -664,6 +669,8 @@ static void microvm_class_init(ObjectClass *oc, void *data)
 
     /* Machine class handlers */
     mc->reset = microvm_machine_reset;
+
+    mc->post_init = microvm_machine_state_post_init;
 
     /* hotplug (for cpu coldplug) */
     mc->get_hotplug_handler = microvm_get_hotplug_handler;

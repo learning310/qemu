@@ -129,21 +129,7 @@ static void pc_q35_init(MachineState *machine)
     PCMachineState *pcms = PC_MACHINE(machine);
     PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
     X86MachineState *x86ms = X86_MACHINE(machine);
-    Object *phb;
-    PCIDevice *lpc;
-    DeviceState *lpc_dev;
-    MemoryRegion *system_memory = get_system_memory();
-    MemoryRegion *system_io = get_system_io();
-    MemoryRegion *pci_memory = g_new(MemoryRegion, 1);
-    GSIState *gsi_state;
-    ISABus *isa_bus;
-    int i;
     ram_addr_t lowmem;
-    DriveInfo *hd[MAX_SATA_PORTS];
-    MachineClass *mc = MACHINE_GET_CLASS(machine);
-    bool acpi_pcihp;
-    bool keep_pci_slot_hpc;
-    uint64_t pci_hole64_size = 0;
 
     assert(pcmc->pci_enabled);
 
@@ -188,6 +174,27 @@ static void pc_q35_init(MachineState *machine)
 
     pc_machine_init_sgx_epc(pcms);
     x86_cpus_init(x86ms, pcmc->default_cpu_version);
+}
+
+static void pc_q35_post_init(MachineState *machine)
+{
+    PCMachineState *pcms = PC_MACHINE(machine);
+    PCMachineClass *pcmc = PC_MACHINE_GET_CLASS(pcms);
+    X86MachineState *x86ms = X86_MACHINE(machine);
+    Object *phb;
+    PCIDevice *lpc;
+    DeviceState *lpc_dev;
+    MemoryRegion *system_memory = get_system_memory();
+    MemoryRegion *system_io = get_system_io();
+    MemoryRegion *pci_memory = g_new(MemoryRegion, 1);
+    GSIState *gsi_state;
+    ISABus *isa_bus;
+    int i;
+    DriveInfo *hd[MAX_SATA_PORTS];
+    MachineClass *mc = MACHINE_GET_CLASS(machine);
+    bool acpi_pcihp;
+    bool keep_pci_slot_hpc;
+    uint64_t pci_hole64_size = 0;
 
     if (kvm_enabled()) {
         kvmclock_create(pcmc->kvmclock_create_always);
@@ -348,6 +355,7 @@ static void pc_q35_machine_options(MachineClass *m)
     m->no_floppy = 1;
     m->max_cpus = 4096;
     m->no_parallel = !module_object_class_by_name(TYPE_ISA_PARALLEL);
+    m->post_init = pc_q35_post_init;
     machine_class_allow_dynamic_sysbus_dev(m, TYPE_AMD_IOMMU_DEVICE);
     machine_class_allow_dynamic_sysbus_dev(m, TYPE_INTEL_IOMMU_DEVICE);
     machine_class_allow_dynamic_sysbus_dev(m, TYPE_RAMFB_DEVICE);
