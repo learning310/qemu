@@ -22,6 +22,7 @@
 #include "qemu/cutils.h"
 #include "qemu/qemu-print.h"
 #include "qemu/hw-version.h"
+#include "core.h"
 #include "cpu.h"
 #include "tcg/helper-tcg.h"
 #include "sysemu/hvf.h"
@@ -742,6 +743,10 @@ static CPUCacheInfo legacy_l3_cache = {
 /* CPUID Leaf 0x1E constants: */
 #define INTEL_AMX_TMUL_MAX_K           0x10
 #define INTEL_AMX_TMUL_MAX_N           0x40
+
+/* CPUID Leaf 0x1A constants: */
+#define INTEL_HYBRID_TYPE_ATOM         0x20
+#define INTEL_HYBRID_TYPE_CORE         0x40
 
 void x86_cpu_vendor_words2str(char *dst, uint32_t vendor1,
                               uint32_t vendor2, uint32_t vendor3)
@@ -6580,6 +6585,11 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index, uint32_t count,
                 *ecx |= CPUID_7_0_ECX_OSPKE;
             }
             *edx = env->features[FEAT_7_0_EDX]; /* Feature flags */
+
+            if (env->parent_core_type != COMMON_CORE &&
+                (IS_INTEL_CPU(env) || !cpu->vendor_cpuid_only)) {
+                *edx |= CPUID_7_0_EDX_HYBRID;
+            }
         } else if (count == 1) {
             *eax = env->features[FEAT_7_1_EAX];
             *edx = env->features[FEAT_7_1_EDX];
@@ -6800,6 +6810,31 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t index, uint32_t count,
         }
         break;
     }
+    case 0x1A:
+        /* Hybrid Information Enumeration */
+        *eax = 0;
+        *ebx = 0;
+        *ecx = 0;
+        *edx = 0;
+        if (env->parent_core_type != COMMON_CORE &&
+            (IS_INTEL_CPU(env) || !cpu->vendor_cpuid_only)) {
+            /*
+             * CPUID.1AH:EAX.[bits 23-0] indicates "native model ID of the
+             * core". Since this field currently is useless for software,
+             * no need to emulate.
+             */
+            switch (env->parent_core_type) {
+            case INTEL_ATOM:
+                *eax = INTEL_HYBRID_TYPE_ATOM << 24;
+                break;
+            case INTEL_CORE:
+                *eax = INTEL_HYBRID_TYPE_CORE << 24;
+                break;
+            default:
+                g_assert_not_reached();
+            }
+        }
+        break;
     case 0x1D: {
         /* AMX TILE, for now hardcoded for Sapphire Rapids*/
         *eax = 0;
@@ -7460,6 +7495,14 @@ void x86_cpu_expand_features(X86CPU *cpu, Error **errp)
         }
 
         /*
+         * Intel CPU topology with hybrid cores support requires CPUID.1AH.
+         */
+        if (env->parent_core_type != COMMON_CORE &&
+            (IS_INTEL_CPU(env) || !cpu->vendor_cpuid_only)) {
+            x86_cpu_adjust_level(cpu, &env->cpuid_min_level, 0x1A);
+        }
+
+        /*
          * Intel CPU topology with multi-dies support requires CPUID[0x1F].
          * For AMD Rome/Milan, cpuid level is 0x10, and guest OS should detect
          * extended toplogy by leaf 0xB. Only adjust it for Intel CPU, unless
@@ -7648,6 +7691,20 @@ static void x86_cpu_realizefn(DeviceState *dev, Error **errp)
     if (cpu->apic_id == UNASSIGNED_APIC_ID) {
         error_setg(errp, "apic-id property was not initialized properly");
         return;
+    }
+
+    /*
+     * TODO: Introduce parent_pre_realize to make sure topology device
+     * can realize first.
+     */
+    if (dev->parent_bus && dev->parent_bus->parent) {
+        DeviceState *parent = dev->parent_bus->parent;
+        X86CPUCore *core =
+            (X86CPUCore *)object_dynamic_cast(OBJECT(parent),
+                                              TYPE_X86_CPU_CORE);
+        if (core) {
+            env->parent_core_type = X86_CPU_CORE_GET_CLASS(core)->core_type;
+        }
     }
 
     /*
@@ -8048,6 +8105,7 @@ static void x86_cpu_initfn(Object *obj)
     CPUX86State *env = &cpu->env;
 
     x86_cpu_init_default_topo(cpu);
+    env->parent_core_type = COMMON_CORE;
 
     object_property_add(obj, "feature-words", "X86CPUFeatureWordInfo",
                         x86_cpu_get_feature_words,
