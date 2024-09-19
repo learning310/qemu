@@ -64,5 +64,6 @@ struct CPUTopoState {
 #define GET_CPU_TOPO_LEVEL(topo)    (CPU_TOPO_GET_CLASS(topo)->level)
 
 int cpu_topo_get_instances_num(CPUTopoState *topo);
+int cpu_topo_get_index(CPUTopoState *topo);
 
 #endif /* CPU_TOPO_H */

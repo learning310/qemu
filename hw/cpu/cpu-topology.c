@@ -49,11 +49,40 @@ static bool cpu_bus_check_address(BusState *bus, DeviceState *dev,
     return cpu_parent_check_topology(bus->parent, dev, errp);
 }
 
+static int cpu_bus_assign_free_index(BusState *bus)
+{
+    BusChild *kid;
+    int index;
+
+    if (bus->num_children == bus->max_index) {
+        return bus->max_index++;
+    }
+
+    assert(bus->num_children < bus->max_index);
+    /* TODO: Introduce the list sorted by index */
+    for (index = 0; index < bus->num_children; index++) {
+        bool existed = false;
+
+        QTAILQ_FOREACH(kid, &bus->children, sibling) {
+            if (kid->index == index) {
+                existed = true;
+                break;
+            }
+        }
+
+        if (!existed) {
+            break;
+        }
+    }
+    return index;
+}
+
 static void cpu_bus_class_init(ObjectClass *oc, void *data)
 {
     BusClass *bc = BUS_CLASS(oc);
 
     bc->check_address = cpu_bus_check_address;
+    bc->assign_free_index = cpu_bus_assign_free_index;
 }
 
 static const TypeInfo cpu_bus_type_info = {
@@ -176,4 +205,12 @@ int cpu_topo_get_instances_num(CPUTopoState *topo)
     BusState *bus = DEVICE(topo)->parent_bus;
 
     return bus ? bus->num_children : 1;
+}
+
+int cpu_topo_get_index(CPUTopoState *topo)
+{
+    BusChild *node = DEVICE(topo)->bus_node;
+
+    assert(node);
+    return node->index;
 }

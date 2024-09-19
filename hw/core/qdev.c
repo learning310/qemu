@@ -78,11 +78,17 @@ static void bus_remove_child(BusState *bus, DeviceState *child)
 
 static void bus_add_child(BusState *bus, DeviceState *child)
 {
+    BusClass *bc = BUS_GET_CLASS(bus);
     char name[32];
     BusChild *kid = g_malloc0(sizeof(*kid));
 
+    if (bc->assign_free_index) {
+        kid->index = bc->assign_free_index(bus);
+    } else {
+        kid->index = bus->max_index++;
+    }
+
     bus->num_children++;
-    kid->index = bus->max_index++;
     kid->child = child;
     child->bus_node = kid;
     object_ref(OBJECT(kid->child));

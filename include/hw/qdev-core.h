@@ -342,6 +342,8 @@ struct BusClass {
      */
     bool (*check_address)(BusState *bus, DeviceState *dev, Error **errp);
 
+    int (*assign_free_index)(BusState *bus);
+
     BusRealize realize;
     BusUnrealize unrealize;
 
