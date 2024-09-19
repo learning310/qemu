@@ -54,6 +54,11 @@ static void machine_none_machine_init(MachineClass *mc)
     mc->no_floppy = 1;
     mc->no_cdrom = 1;
     mc->no_sdcard = 1;
+    /*
+     * For compatibility with arches and CPUs that already
+     * support topology tree.
+     */
+    mc->smp_props.topo_tree_supported = true;
 }
 
 DEFINE_MACHINE("none", machine_none_machine_init)
