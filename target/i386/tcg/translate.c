@@ -127,6 +127,7 @@ typedef struct DisasContext {
     int cpuid_7_0_ecx_features;
     int cpuid_7_1_eax_features;
     int cpuid_xsave_features;
+    int cpuid_c000_0001_edx_features;
 
     /* TCG local temps */
     TCGv cc_srcT;
@@ -3655,6 +3656,36 @@ static void gen_multi0F(DisasContext *s, X86DecodedInsn *decode)
     gen_illegal_opcode(s);
 }
 
+static void gen_phe(DisasContext *s, X86DecodedInsn *decode)
+{
+    uint8_t modrm = s->modrm;
+
+    /* PadLock instructions require REP prefix */
+    if (!(s->prefix & PREFIX_REPZ)) {
+        gen_illegal_opcode(s);
+        return;
+    }
+
+    /* Only register form allowed */
+    if ((modrm >> 6) != 3) {
+        gen_illegal_opcode(s);
+        return;
+    }
+
+    switch (modrm) {
+    case 0xD8: /* XSHA384 */
+        gen_helper_xsha384(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI],
+                   cpu_regs[R_ECX]);
+        break;
+    case 0xE0:
+        gen_helper_xsha512(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI],
+                   cpu_regs[R_ECX]);
+        break; 
+    default:
+        gen_illegal_opcode(s);
+    }
+}
+
 #include "decode-new.c.inc"
 
 void tcg_x86_init(void)
@@ -3788,6 +3819,7 @@ static void i386_tr_init_disas_context(DisasContextBase *dcbase, CPUState *cpu)
     dc->cpuid_7_0_ecx_features = env->features[FEAT_7_0_ECX];
     dc->cpuid_7_1_eax_features = env->features[FEAT_7_1_EAX];
     dc->cpuid_xsave_features = env->features[FEAT_XSAVE];
+    dc->cpuid_c000_0001_edx_features = env->features[FEAT_C000_0001_EDX];
     dc->jmp_opt = !((cflags & CF_NO_GOTO_TB) ||
                     (flags & (HF_RF_MASK | HF_TF_MASK | HF_INHIBIT_IRQ_MASK)));
 

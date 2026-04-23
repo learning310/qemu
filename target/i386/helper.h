@@ -210,3 +210,6 @@ DEF_HELPER_1(emms, void, env)
 #include "tcg/ops_sse_header.h.inc"
 
 DEF_HELPER_1(rdrand, tl, env)
+
+DEF_HELPER_4(xsha384, void, env, tl, tl, tl)
+DEF_HELPER_4(xsha512, void, env, tl, tl, tl)

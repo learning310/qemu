@@ -1239,6 +1239,8 @@ static const X86OpEntry opcodes_0F[256] = {
     [0xa4] = X86_OP_ENTRY4(SHLD,  E,v, 2op,v, G,v),
     [0xa5] = X86_OP_ENTRY3(SHLD,  E,v, 2op,v, G,v),
 
+    [0xA6] = X86_OP_ENTRYw(phe, E, b, cpuid(PHE2)),
+
     [0xb0] = X86_OP_ENTRY2(CMPXCHG,E,b, G,b, lock),
     [0xb1] = X86_OP_ENTRY2(CMPXCHG,E,v, G,v, lock),
     [0xb2] = X86_OP_ENTRY3(LSS,    G,v, EM,p, None, None),
@@ -2373,6 +2375,8 @@ static bool has_cpuid_feature(DisasContext *s, X86CPUIDFeature cpuid)
 
     case X86_FEAT_XSAVEOPT:
         return (s->cpuid_xsave_features & CPUID_XSAVE_XSAVEOPT);
+    case X86_FEAT_PHE2:
+        return (s->cpuid_c000_0001_edx_features & (CPUID_C000_0001_EDX_PHE2 | CPUID_C000_0001_EDX_PHE2_EN));
     }
     g_assert_not_reached();
 }
