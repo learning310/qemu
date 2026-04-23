@@ -96,116 +96,34 @@ static void sha512_384_compress(uint64_t state[8], const uint8_t block[128])
 	state[7] += h;
 }
 
-/*
- * helper_xsha384 - QEMU helper for the REP XSHA384 instruction.
- *
- * @env : CPU state
- * @rsi : guest virtual address of input data stream (ES segment assumed)
- * @rdi : guest virtual address of the 64-byte, 16-byte-aligned hash state
- *         (8 x uint64_t big-endian, writable)
- * @rcx : number of 128-byte blocks to process
- *
- * Behaviour:
- *   - If rcx == 0 the function is a NOP (matches the "0 means NOP" spec).
- *   - Reads each 128-byte block from [rsi], processes it into the state at
- *     [rdi], advances rsi by 128 per block.
- *   - On return: rcx = 0, rsi advanced, rdi unchanged (state updated in mem).
- */
-void helper_xsha384(CPUX86State *env, target_ulong rsi, target_ulong rdi, target_ulong rcx)
+static void sha512_384_block(CPUX86State *env, target_ulong rsi, target_ulong rdi)
 {
-    uint64_t state[8];
-    uint8_t block[128];
-    target_ulong i, j;
+	uint64_t state[8];
+	uint8_t block[128];
+	int i;
 
-    /* NOP case */
-    if (rcx == 0) {
-        return;
-    }
+	for (i = 0; i < 8; i++) {
+		state[i] = cpu_ldq_le_data(env, rdi + i * 8);
+	}
 
-    /* ------------------------------------------------------------------ *
-     * Load the current hash state (8 x uint64_t, little-endian in memory)   *
-     * RDI points to 64 bytes, 16-byte aligned.                           *
-     * ------------------------------------------------------------------ */
-    for (i = 0; i < 8; i++) {
-        state[i] = cpu_ldq_le_data(env, rdi + i * 8);
-    }
+	for (i = 0; i < 128; i++) {
+		block[i] = cpu_ldub_data(env, rsi + i);
+	}
 
-    /* ------------------------------------------------------------------ *
-     * Process each 128-byte block                                         *
-     * ------------------------------------------------------------------ */
-    for (i = 0; i < rcx; i++) {
-        /* Read one 128-byte block from guest memory */
-        for (j = 0; j < 128; j++) {
-            block[j] = cpu_ldub_data(env, rsi + j);
-        }
-        sha512_384_compress(state, block);
-        rsi += 128;
-    }
+	sha512_384_compress(state, block);
 
-    /* ------------------------------------------------------------------ *
-     * Write the updated hash state back to [RDI] (little-endian)            *
-     * ------------------------------------------------------------------ */
-    for (i = 0; i < 8; i++) {
-        cpu_stq_le_data(env, rdi + i * 8, state[i]);
-    }
-
-    env->regs[R_ECX] = 0;
-    env->regs[R_ESI] = rsi;
+	/* FIXME: 确定一下XSHA384指令对于最后两个state如何处理 */
+	for (i = 0; i < 8; i++) {
+		cpu_stq_le_data(env, rdi + i * 8, state[i]);
+	}
 }
 
-/*
- * helper_xsha512 - QEMU helper for the REP XSHA512 instruction.
- *
- * @env : CPU state
- * @rsi : guest virtual address of input data stream (ES segment assumed)
- * @rdi : guest virtual address of the 64-byte, 16-byte-aligned hash state
- *         (8 x uint64_t little-endian, writable)
- * @rcx : number of 128-byte blocks to process
- *
- * Behaviour:
- *   - If rcx == 0 the function is a NOP.
- *   - Reads each 128-byte block from [rsi], processes it into the state at
- *     [rdi], advances rsi by 128 per block.
- *   - On return: rcx = 0, rsi advanced, rdi unchanged (state updated in mem).
- */
-void helper_xsha512(CPUX86State *env, target_ulong rsi, target_ulong rdi, target_ulong rcx)
+void helper_xsha384(CPUX86State *env, target_ulong rsi, target_ulong rdi)
 {
-	 uint64_t state[8];
-    uint8_t block[128];
-    target_ulong i, j;
+	sha512_384_block(env, rsi, rdi);
+}
 
-    /* NOP case */
-    if (rcx == 0) {
-        return;
-    }
-
-    /* ------------------------------------------------------------------ *
-     * Load the current hash state (8 x uint64_t, little-endian in memory)   *
-     * RDI points to 64 bytes, 16-byte aligned.                           *
-     * ------------------------------------------------------------------ */
-    for (i = 0; i < 8; i++) {
-        state[i] = cpu_ldq_le_data(env, rdi + i * 8);
-    }
-
-    /* ------------------------------------------------------------------ *
-     * Process each 128-byte block                                         *
-     * ------------------------------------------------------------------ */
-    for (i = 0; i < rcx; i++) {
-        /* Read one 128-byte block from guest memory */
-        for (j = 0; j < 128; j++) {
-            block[j] = cpu_ldub_data(env, rsi + j);
-        }
-        sha512_384_compress(state, block);
-        rsi += 128;
-    }
-
-    /* ------------------------------------------------------------------ *
-     * Write the updated hash state back to [RDI] (little-endian)            *
-     * ------------------------------------------------------------------ */
-    for (i = 0; i < 8; i++) {
-        cpu_stq_le_data(env, rdi + i * 8, state[i]);
-    }
-
-    env->regs[R_ECX] = 0;
-    env->regs[R_ESI] = rsi;
+void helper_xsha512(CPUX86State *env, target_ulong rsi, target_ulong rdi)
+{
+	sha512_384_block(env, rsi, rdi);
 }
