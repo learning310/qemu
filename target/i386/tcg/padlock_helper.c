@@ -35,57 +35,129 @@ static const uint64_t K[80] = {
 #define ROTR64(x, n) (((x) >> (n)) | ((x) << (64 - (n))))
 
 /* SHA-512 logical functions */
-#define CH(x, y, z) (((x) & (y)) ^ (~(x) & (z)))
-#define MAJ(x, y, z) (((x) & (y)) ^ ((x) & (z)) ^ ((y) & (z)))
+#define CH(x, y, z) ((z) ^ ((x) & ((y) ^ (z))))
+#define MAJ(x, y, z) (((x) & (y)) | ((z) & ((x) | (y))))
 #define SIGMA0(x) (ROTR64(x, 28) ^ ROTR64(x, 34) ^ ROTR64(x, 39))
 #define SIGMA1(x) (ROTR64(x, 14) ^ ROTR64(x, 18) ^ ROTR64(x, 41))
 #define sigma0(x) (ROTR64(x, 1) ^ ROTR64(x, 8) ^ ((x) >> 7))
 #define sigma1(x) (ROTR64(x, 19) ^ ROTR64(x, 61) ^ ((x) >> 6))
 
+/* One round: T1 = h + Σ1(e) + Ch(e,f,g) + k + w
+ *            T2 = Σ0(a) + Maj(a,b,c)
+ *            d += T1 ;  h = T1 + T2
+ * The caller rotates a..h by passing the current registers
+ * in the right positions, so no explicit "shift" is needed. */
+static inline void Round(uint64_t a, uint64_t b, uint64_t c, uint64_t *d, uint64_t e, uint64_t f,
+			 uint64_t g, uint64_t *h, uint64_t k, uint64_t w)
+{
+	uint64_t t1 = *h + SIGMA1(e) + CH(e, f, g) + k + w;
+	uint64_t t2 = SIGMA0(a) + MAJ(a, b, c);
+	*d += t1;
+	*h = t1 + t2;
+}
+
 /*
  * Process one 128-byte (1024-bit) SHA-384/512 block.
- * state: array of 8 x uint64_t  (H0..H7), updated in-place.
- * block: pointer to 128 bytes of message data (big-endian on wire).
+ * state : array of 8 x uint64_t (H0..H7), updated in-place.
+ * block : pointer to 128 bytes of message data (big-endian on wire).
  */
 static void sha512_384_compress(uint64_t state[8], const uint8_t block[128])
 {
-	uint64_t W[80];
-	uint64_t a, b, c, d, e, f, g, h;
-	int t;
+	uint64_t a = state[0], b = state[1], c = state[2], d = state[3];
+	uint64_t e = state[4], f = state[5], g = state[6], h = state[7];
+	uint64_t w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15;
 
-	/* Prepare message schedule W[0..79] */
-	for (t = 0; t < 16; t++) {
-		W[t] = ldq_be_p(block + t * 8);
-	}
-	for (t = 16; t < 80; t++) {
-		W[t] = sigma1(W[t - 2]) + W[t - 7] + sigma0(W[t - 15]) + W[t - 16];
-	}
+	/* ---- Rounds 0-15: load message words ---- */
+	Round(a, b, c, &d, e, f, g, &h, K[0], w0 = ldq_be_p(block + 0));
+	Round(h, a, b, &c, d, e, f, &g, K[1], w1 = ldq_be_p(block + 8));
+	Round(g, h, a, &b, c, d, e, &f, K[2], w2 = ldq_be_p(block + 16));
+	Round(f, g, h, &a, b, c, d, &e, K[3], w3 = ldq_be_p(block + 24));
+	Round(e, f, g, &h, a, b, c, &d, K[4], w4 = ldq_be_p(block + 32));
+	Round(d, e, f, &g, h, a, b, &c, K[5], w5 = ldq_be_p(block + 40));
+	Round(c, d, e, &f, g, h, a, &b, K[6], w6 = ldq_be_p(block + 48));
+	Round(b, c, d, &e, f, g, h, &a, K[7], w7 = ldq_be_p(block + 56));
+	Round(a, b, c, &d, e, f, g, &h, K[8], w8 = ldq_be_p(block + 64));
+	Round(h, a, b, &c, d, e, f, &g, K[9], w9 = ldq_be_p(block + 72));
+	Round(g, h, a, &b, c, d, e, &f, K[10], w10 = ldq_be_p(block + 80));
+	Round(f, g, h, &a, b, c, d, &e, K[11], w11 = ldq_be_p(block + 88));
+	Round(e, f, g, &h, a, b, c, &d, K[12], w12 = ldq_be_p(block + 96));
+	Round(d, e, f, &g, h, a, b, &c, K[13], w13 = ldq_be_p(block + 104));
+	Round(c, d, e, &f, g, h, a, &b, K[14], w14 = ldq_be_p(block + 112));
+	Round(b, c, d, &e, f, g, h, &a, K[15], w15 = ldq_be_p(block + 120));
 
-	/* Initialize working variables */
-	a = state[0];
-	b = state[1];
-	c = state[2];
-	d = state[3];
-	e = state[4];
-	f = state[5];
-	g = state[6];
-	h = state[7];
+	/* ---- Rounds 16-31 ---- */
+	Round(a, b, c, &d, e, f, g, &h, K[16], w0 += sigma1(w14) + w9 + sigma0(w1));
+	Round(h, a, b, &c, d, e, f, &g, K[17], w1 += sigma1(w15) + w10 + sigma0(w2));
+	Round(g, h, a, &b, c, d, e, &f, K[18], w2 += sigma1(w0) + w11 + sigma0(w3));
+	Round(f, g, h, &a, b, c, d, &e, K[19], w3 += sigma1(w1) + w12 + sigma0(w4));
+	Round(e, f, g, &h, a, b, c, &d, K[20], w4 += sigma1(w2) + w13 + sigma0(w5));
+	Round(d, e, f, &g, h, a, b, &c, K[21], w5 += sigma1(w3) + w14 + sigma0(w6));
+	Round(c, d, e, &f, g, h, a, &b, K[22], w6 += sigma1(w4) + w15 + sigma0(w7));
+	Round(b, c, d, &e, f, g, h, &a, K[23], w7 += sigma1(w5) + w0 + sigma0(w8));
+	Round(a, b, c, &d, e, f, g, &h, K[24], w8 += sigma1(w6) + w1 + sigma0(w9));
+	Round(h, a, b, &c, d, e, f, &g, K[25], w9 += sigma1(w7) + w2 + sigma0(w10));
+	Round(g, h, a, &b, c, d, e, &f, K[26], w10 += sigma1(w8) + w3 + sigma0(w11));
+	Round(f, g, h, &a, b, c, d, &e, K[27], w11 += sigma1(w9) + w4 + sigma0(w12));
+	Round(e, f, g, &h, a, b, c, &d, K[28], w12 += sigma1(w10) + w5 + sigma0(w13));
+	Round(d, e, f, &g, h, a, b, &c, K[29], w13 += sigma1(w11) + w6 + sigma0(w14));
+	Round(c, d, e, &f, g, h, a, &b, K[30], w14 += sigma1(w12) + w7 + sigma0(w15));
+	Round(b, c, d, &e, f, g, h, &a, K[31], w15 += sigma1(w13) + w8 + sigma0(w0));
 
-	/* 80 rounds */
-	for (t = 0; t < 80; t++) {
-		uint64_t T1 = h + SIGMA1(e) + CH(e, f, g) + K[t] + W[t];
-		uint64_t T2 = SIGMA0(a) + MAJ(a, b, c);
-		h = g;
-		g = f;
-		f = e;
-		e = d + T1;
-		d = c;
-		c = b;
-		b = a;
-		a = T1 + T2;
-	}
+	/* ---- Rounds 32-47 ---- */
+	Round(a, b, c, &d, e, f, g, &h, K[32], w0 += sigma1(w14) + w9 + sigma0(w1));
+	Round(h, a, b, &c, d, e, f, &g, K[33], w1 += sigma1(w15) + w10 + sigma0(w2));
+	Round(g, h, a, &b, c, d, e, &f, K[34], w2 += sigma1(w0) + w11 + sigma0(w3));
+	Round(f, g, h, &a, b, c, d, &e, K[35], w3 += sigma1(w1) + w12 + sigma0(w4));
+	Round(e, f, g, &h, a, b, c, &d, K[36], w4 += sigma1(w2) + w13 + sigma0(w5));
+	Round(d, e, f, &g, h, a, b, &c, K[37], w5 += sigma1(w3) + w14 + sigma0(w6));
+	Round(c, d, e, &f, g, h, a, &b, K[38], w6 += sigma1(w4) + w15 + sigma0(w7));
+	Round(b, c, d, &e, f, g, h, &a, K[39], w7 += sigma1(w5) + w0 + sigma0(w8));
+	Round(a, b, c, &d, e, f, g, &h, K[40], w8 += sigma1(w6) + w1 + sigma0(w9));
+	Round(h, a, b, &c, d, e, f, &g, K[41], w9 += sigma1(w7) + w2 + sigma0(w10));
+	Round(g, h, a, &b, c, d, e, &f, K[42], w10 += sigma1(w8) + w3 + sigma0(w11));
+	Round(f, g, h, &a, b, c, d, &e, K[43], w11 += sigma1(w9) + w4 + sigma0(w12));
+	Round(e, f, g, &h, a, b, c, &d, K[44], w12 += sigma1(w10) + w5 + sigma0(w13));
+	Round(d, e, f, &g, h, a, b, &c, K[45], w13 += sigma1(w11) + w6 + sigma0(w14));
+	Round(c, d, e, &f, g, h, a, &b, K[46], w14 += sigma1(w12) + w7 + sigma0(w15));
+	Round(b, c, d, &e, f, g, h, &a, K[47], w15 += sigma1(w13) + w8 + sigma0(w0));
 
-	/* Update state */
+	/* ---- Rounds 48-63 ---- */
+	Round(a, b, c, &d, e, f, g, &h, K[48], w0 += sigma1(w14) + w9 + sigma0(w1));
+	Round(h, a, b, &c, d, e, f, &g, K[49], w1 += sigma1(w15) + w10 + sigma0(w2));
+	Round(g, h, a, &b, c, d, e, &f, K[50], w2 += sigma1(w0) + w11 + sigma0(w3));
+	Round(f, g, h, &a, b, c, d, &e, K[51], w3 += sigma1(w1) + w12 + sigma0(w4));
+	Round(e, f, g, &h, a, b, c, &d, K[52], w4 += sigma1(w2) + w13 + sigma0(w5));
+	Round(d, e, f, &g, h, a, b, &c, K[53], w5 += sigma1(w3) + w14 + sigma0(w6));
+	Round(c, d, e, &f, g, h, a, &b, K[54], w6 += sigma1(w4) + w15 + sigma0(w7));
+	Round(b, c, d, &e, f, g, h, &a, K[55], w7 += sigma1(w5) + w0 + sigma0(w8));
+	Round(a, b, c, &d, e, f, g, &h, K[56], w8 += sigma1(w6) + w1 + sigma0(w9));
+	Round(h, a, b, &c, d, e, f, &g, K[57], w9 += sigma1(w7) + w2 + sigma0(w10));
+	Round(g, h, a, &b, c, d, e, &f, K[58], w10 += sigma1(w8) + w3 + sigma0(w11));
+	Round(f, g, h, &a, b, c, d, &e, K[59], w11 += sigma1(w9) + w4 + sigma0(w12));
+	Round(e, f, g, &h, a, b, c, &d, K[60], w12 += sigma1(w10) + w5 + sigma0(w13));
+	Round(d, e, f, &g, h, a, b, &c, K[61], w13 += sigma1(w11) + w6 + sigma0(w14));
+	Round(c, d, e, &f, g, h, a, &b, K[62], w14 += sigma1(w12) + w7 + sigma0(w15));
+	Round(b, c, d, &e, f, g, h, &a, K[63], w15 += sigma1(w13) + w8 + sigma0(w0));
+
+	/* ---- Rounds 64-79 ---- */
+	Round(a, b, c, &d, e, f, g, &h, K[64], w0 += sigma1(w14) + w9 + sigma0(w1));
+	Round(h, a, b, &c, d, e, f, &g, K[65], w1 += sigma1(w15) + w10 + sigma0(w2));
+	Round(g, h, a, &b, c, d, e, &f, K[66], w2 += sigma1(w0) + w11 + sigma0(w3));
+	Round(f, g, h, &a, b, c, d, &e, K[67], w3 += sigma1(w1) + w12 + sigma0(w4));
+	Round(e, f, g, &h, a, b, c, &d, K[68], w4 += sigma1(w2) + w13 + sigma0(w5));
+	Round(d, e, f, &g, h, a, b, &c, K[69], w5 += sigma1(w3) + w14 + sigma0(w6));
+	Round(c, d, e, &f, g, h, a, &b, K[70], w6 += sigma1(w4) + w15 + sigma0(w7));
+	Round(b, c, d, &e, f, g, h, &a, K[71], w7 += sigma1(w5) + w0 + sigma0(w8));
+	Round(a, b, c, &d, e, f, g, &h, K[72], w8 += sigma1(w6) + w1 + sigma0(w9));
+	Round(h, a, b, &c, d, e, f, &g, K[73], w9 += sigma1(w7) + w2 + sigma0(w10));
+	Round(g, h, a, &b, c, d, e, &f, K[74], w10 += sigma1(w8) + w3 + sigma0(w11));
+	Round(f, g, h, &a, b, c, d, &e, K[75], w11 += sigma1(w9) + w4 + sigma0(w12));
+	Round(e, f, g, &h, a, b, c, &d, K[76], w12 += sigma1(w10) + w5 + sigma0(w13));
+	Round(d, e, f, &g, h, a, b, &c, K[77], w13 += sigma1(w11) + w6 + sigma0(w14));
+	Round(c, d, e, &f, g, h, a, &b, K[78], w14 += sigma1(w12) + w7 + sigma0(w15));
+	Round(b, c, d, &e, f, g, h, &a, K[79], w15 += sigma1(w13) + w8 + sigma0(w0));
+
+	/* ---- Update state ---- */
 	state[0] += a;
 	state[1] += b;
 	state[2] += c;

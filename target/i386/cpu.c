@@ -976,7 +976,7 @@ void x86_cpu_vendor_words2str(char *dst, uint32_t vendor1,
           CPUID_EXT3_3DNOWPREFETCH | CPUID_EXT3_KERNEL_FEATURES | \
           CPUID_EXT3_CMP_LEG)
 
-#define TCG_EXT4_FEATURES (CPUID_C000_0001_EDX_PHE2 | CPUID_C000_0001_EDX_PHE2_EN)
+#define TCG_EXT4_FEATURES 0
 
 #if defined CONFIG_USER_ONLY
 #define CPUID_SVM_KERNEL_FEATURES (CPUID_SVM_NRIPSAVE | CPUID_SVM_VNMI)
@@ -1142,7 +1142,7 @@ FeatureWordInfo feature_word_info[FEATURE_WORDS] = {
             "pmm", "pmm-en", NULL, NULL,
             NULL, NULL, NULL, NULL,
             NULL, NULL, NULL, NULL,
-            NULL, "phe2", "phe2-en", NULL,
+            NULL, NULL, NULL, NULL,
             NULL, NULL, NULL, NULL,
         },
         .cpuid = { .eax = 0xC0000001, .reg = R_EDX, },
