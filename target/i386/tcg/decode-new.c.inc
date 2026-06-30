@@ -565,15 +565,18 @@ static void decode_0FBD(DisasContext *s, CPUX86State *env, X86OpEntry *entry, ui
     }
 }
 
-static const X86OpEntry opcodes_0FA6[256] = {
-    [0xD8] = X86_OP_ENTRY0(phe, cpuid(PHE2)),
-    [0xE0] = X86_OP_ENTRY0(phe, cpuid(PHE2)),
-};
-
 static void decode_0FA6(DisasContext *s, CPUX86State *env, X86OpEntry *entry, uint8_t *b)
 {
+    static const X86OpEntry opcodes_0FA6[2] = {
+        X86_OP_ENTRY0(phe, cpuid(PHE2)),
+        X86_OP_ENTRY0(phe, cpuid(PHE2)),
+    };
+
     *b = x86_ldub_code(env, s);
-    *entry = opcodes_0FA6[*b];
+    switch (*b) {
+    case 0xD8: *entry = opcodes_0FA6[0]; break;
+    case 0xE0: *entry = opcodes_0FA6[1]; break;
+    }
 }
 
 static void decode_0FD6(DisasContext *s, CPUX86State *env, X86OpEntry *entry, uint8_t *b)
