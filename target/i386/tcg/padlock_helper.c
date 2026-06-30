@@ -175,18 +175,18 @@ static void sha512_384_compress(uint64_t state[8], const uint8_t block[128])
 static void sha512_384_block(CPUX86State *env, target_ulong rsi, target_ulong rdi)
 {
     uint64_t state[8];
-    uint8_t block[128];
+    uint64_t block[16];
     int i;
 
     for (i = 0; i < 8; i++) {
         state[i] = cpu_ldq_le_data(env, rdi + i * 8);
     }
 
-    for (i = 0; i < 128; i++) {
-        block[i] = cpu_ldub_data(env, rsi + i);
+    for (i = 0; i < 16; i++) {
+        block[i] = cpu_ldq_le_data(env, rsi + (i << 3));
     }
 
-    sha512_384_compress(state, block);
+    sha512_384_compress(state, (const uint8_t *)block);
 
     /*
      * Note: The XSHA384 instruction writes back the full 64-byte state,
