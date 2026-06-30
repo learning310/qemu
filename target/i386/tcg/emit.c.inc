@@ -2911,6 +2911,88 @@ static void gen_PEXTR(DisasContext *s, X86DecodedInsn *decode)
     gen_pextr(s, decode, ot);
 }
 
+static void gen_phe(DisasContext *s, X86DecodedInsn *decode)
+{
+    if (!(s->prefix & PREFIX_REPZ)) {
+        gen_illegal_opcode(s);
+        return;
+    }
+
+    TCGLabel *last = gen_new_label();
+    TCGLabel *loop = gen_new_label();
+    TCGLabel *done = gen_new_label();
+
+    target_ulong cx_mask = MAKE_64BIT_MASK(0, 8 << s->aflag);
+    TCGv cx_next = tcg_temp_new();
+
+    bool can_loop =
+        (!(tb_cflags(s->base.tb) & (CF_USE_ICOUNT | CF_SINGLE_STEP))
+         && !(s->flags & (HF_TF_MASK | HF_INHIBIT_IRQ_MASK)));
+
+    s->flags &= ~HF_RF_MASK;
+
+    gen_update_cc_op(s);
+    tcg_set_insn_start_param(s->base.insn_start, 1, CC_OP_DYNAMIC);
+
+    tcg_gen_brcondi_tl(TCG_COND_TSTEQ, cpu_regs[R_ECX], cx_mask, done);
+
+    tcg_gen_subi_tl(cx_next, cpu_regs[R_ECX], 1);
+#ifdef TARGET_X86_64
+    if (s->aflag == MO_32) {
+        tcg_gen_ext32u_tl(cx_next, cx_next);
+        cx_mask = ~0;
+    }
+#endif
+
+    if (can_loop) {
+        tcg_gen_brcondi_tl(TCG_COND_TSTEQ, cx_next, cx_mask, last);
+    }
+
+    gen_set_label(loop);
+
+    switch (decode->b) {
+    case 0xD8: /* XSHA384 */
+        gen_helper_xsha384(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
+        break;
+    case 0xE0: /* XSHA512 */
+        gen_helper_xsha512(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
+        break;
+    default:
+        gen_illegal_opcode(s);
+        return;
+    }
+
+    tcg_gen_addi_tl(cpu_regs[R_ESI], cpu_regs[R_ESI], 128);
+    tcg_gen_mov_tl(cpu_regs[R_ECX], cx_next);
+
+    if (can_loop) {
+        tcg_gen_subi_tl(cx_next, cx_next, 1);
+        tcg_gen_brcondi_tl(TCG_COND_TSTNE, cx_next, REP_MAX, loop);
+        tcg_gen_brcondi_tl(TCG_COND_TSTEQ, cx_next, cx_mask, last);
+    }
+
+    gen_jmp_rel_csize(s, -cur_insn_len(s), 0);
+
+    if (can_loop) {
+        gen_set_label(last);
+
+        switch (decode->b) {
+        case 0xD8:
+            gen_helper_xsha384(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
+            break;
+        case 0xE0:
+            gen_helper_xsha512(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
+            break;
+        }
+
+        tcg_gen_addi_tl(cpu_regs[R_ESI], cpu_regs[R_ESI], 128);
+        tcg_gen_mov_tl(cpu_regs[R_ECX], cx_next);
+    }
+
+    gen_set_label(done);
+    gen_jmp_rel_csize(s, 0, 1);
+}
+
 static inline void gen_pinsr(DisasContext *s, X86DecodedInsn *decode, MemOp ot)
 {
     int vec_len = vector_len(s, decode);
@@ -4821,86 +4903,4 @@ static void gen_XSAVEOPT(DisasContext *s, X86DecodedInsn *decode)
 
     tcg_gen_concat_tl_i64(features, cpu_regs[R_EAX], cpu_regs[R_EDX]);
     gen_helper_xsave(tcg_env, s->A0, features);
-}
-
-static void gen_phe(DisasContext *s, X86DecodedInsn *decode)
-{
-    if (!(s->prefix & PREFIX_REPZ)) {
-        gen_illegal_opcode(s);
-        return;
-    }
-
-    TCGLabel *last = gen_new_label();
-    TCGLabel *loop = gen_new_label();
-    TCGLabel *done = gen_new_label();
-
-    target_ulong cx_mask = MAKE_64BIT_MASK(0, 8 << s->aflag);
-    TCGv cx_next = tcg_temp_new();
-
-    bool can_loop =
-        (!(tb_cflags(s->base.tb) & (CF_USE_ICOUNT | CF_SINGLE_STEP))
-         && !(s->flags & (HF_TF_MASK | HF_INHIBIT_IRQ_MASK)));
-
-    s->flags &= ~HF_RF_MASK;
-
-    gen_update_cc_op(s);
-    tcg_set_insn_start_param(s->base.insn_start, 1, CC_OP_DYNAMIC);
-
-    tcg_gen_brcondi_tl(TCG_COND_TSTEQ, cpu_regs[R_ECX], cx_mask, done);
-
-    tcg_gen_subi_tl(cx_next, cpu_regs[R_ECX], 1);
-#ifdef TARGET_X86_64
-    if (s->aflag == MO_32) {
-        tcg_gen_ext32u_tl(cx_next, cx_next);
-        cx_mask = ~0;
-    }
-#endif
-
-    if (can_loop) {
-        tcg_gen_brcondi_tl(TCG_COND_TSTEQ, cx_next, cx_mask, last);
-    }
-
-    gen_set_label(loop);
-
-    switch (decode->b) {
-    case 0xD8: /* XSHA384 */
-        gen_helper_xsha384(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
-        break;
-    case 0xE0: /* XSHA512 */
-        gen_helper_xsha512(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
-        break;
-    default:
-        gen_illegal_opcode(s);
-        return;
-    }
-
-    tcg_gen_addi_tl(cpu_regs[R_ESI], cpu_regs[R_ESI], 128);
-    tcg_gen_mov_tl(cpu_regs[R_ECX], cx_next);
-
-    if (can_loop) {
-        tcg_gen_subi_tl(cx_next, cx_next, 1);
-        tcg_gen_brcondi_tl(TCG_COND_TSTNE, cx_next, REP_MAX, loop);
-        tcg_gen_brcondi_tl(TCG_COND_TSTEQ, cx_next, cx_mask, last);
-    }
-
-    gen_jmp_rel_csize(s, -cur_insn_len(s), 0);
-
-    if (can_loop) {
-        gen_set_label(last);
-
-        switch (decode->b) {
-        case 0xD8:
-            gen_helper_xsha384(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
-            break;
-        case 0xE0:
-            gen_helper_xsha512(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
-            break;
-        }
-
-        tcg_gen_addi_tl(cpu_regs[R_ESI], cpu_regs[R_ESI], 128);
-        tcg_gen_mov_tl(cpu_regs[R_ECX], cx_next);
-    }
-
-    gen_set_label(done);
-    gen_jmp_rel_csize(s, 0, 1);
 }
