@@ -4825,14 +4825,7 @@ static void gen_XSAVEOPT(DisasContext *s, X86DecodedInsn *decode)
 
 static void gen_phe(DisasContext *s, X86DecodedInsn *decode)
 {
-    uint8_t modrm = s->modrm;
-
     if (!(s->prefix & PREFIX_REPZ)) {
-        gen_illegal_opcode(s);
-        return;
-    }
-
-    if ((modrm >> 6) != 3) {
         gen_illegal_opcode(s);
         return;
     }
@@ -4869,7 +4862,7 @@ static void gen_phe(DisasContext *s, X86DecodedInsn *decode)
 
     gen_set_label(loop);
 
-    switch (modrm) {
+    switch (decode->b) {
     case 0xD8: /* XSHA384 */
         gen_helper_xsha384(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
         break;
@@ -4895,7 +4888,7 @@ static void gen_phe(DisasContext *s, X86DecodedInsn *decode)
     if (can_loop) {
         gen_set_label(last);
 
-        switch (modrm) {
+        switch (decode->b) {
         case 0xD8:
             gen_helper_xsha384(tcg_env, cpu_regs[R_ESI], cpu_regs[R_EDI]);
             break;
