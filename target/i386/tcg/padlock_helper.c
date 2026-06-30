@@ -59,31 +59,31 @@ static inline void Round(uint64_t a, uint64_t b, uint64_t c, uint64_t *d,
 /*
  * Process one 128-byte (1024-bit) SHA-384/512 block.
  * state : array of 8 x uint64_t (H0..H7), updated in-place.
- * block : pointer to 128 bytes of message data (big-endian on wire).
+ * block : pointer to 128 bytes of message data (big-endian).
  */
-static void sha512_384_compress(uint64_t state[8], const uint8_t block[128])
+static void sha512_384_compress(uint64_t state[8], const uint64_t block[16])
 {
     uint64_t a = state[0], b = state[1], c = state[2], d = state[3];
     uint64_t e = state[4], f = state[5], g = state[6], h = state[7];
     uint64_t w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15;
 
     /* ---- Rounds 0-15: load message words ---- */
-    Round(a, b, c, &d, e, f, g, &h, K[0], w0 = ldq_be_p(block + 0));
-    Round(h, a, b, &c, d, e, f, &g, K[1], w1 = ldq_be_p(block + 8));
-    Round(g, h, a, &b, c, d, e, &f, K[2], w2 = ldq_be_p(block + 16));
-    Round(f, g, h, &a, b, c, d, &e, K[3], w3 = ldq_be_p(block + 24));
-    Round(e, f, g, &h, a, b, c, &d, K[4], w4 = ldq_be_p(block + 32));
-    Round(d, e, f, &g, h, a, b, &c, K[5], w5 = ldq_be_p(block + 40));
-    Round(c, d, e, &f, g, h, a, &b, K[6], w6 = ldq_be_p(block + 48));
-    Round(b, c, d, &e, f, g, h, &a, K[7], w7 = ldq_be_p(block + 56));
-    Round(a, b, c, &d, e, f, g, &h, K[8], w8 = ldq_be_p(block + 64));
-    Round(h, a, b, &c, d, e, f, &g, K[9], w9 = ldq_be_p(block + 72));
-    Round(g, h, a, &b, c, d, e, &f, K[10], w10 = ldq_be_p(block + 80));
-    Round(f, g, h, &a, b, c, d, &e, K[11], w11 = ldq_be_p(block + 88));
-    Round(e, f, g, &h, a, b, c, &d, K[12], w12 = ldq_be_p(block + 96));
-    Round(d, e, f, &g, h, a, b, &c, K[13], w13 = ldq_be_p(block + 104));
-    Round(c, d, e, &f, g, h, a, &b, K[14], w14 = ldq_be_p(block + 112));
-    Round(b, c, d, &e, f, g, h, &a, K[15], w15 = ldq_be_p(block + 120));
+    Round(a, b, c, &d, e, f, g, &h, K[0], w0 = block[0]);
+    Round(h, a, b, &c, d, e, f, &g, K[1], w1 = block[1]);
+    Round(g, h, a, &b, c, d, e, &f, K[2], w2 = block[2]);
+    Round(f, g, h, &a, b, c, d, &e, K[3], w3 = block[3]);
+    Round(e, f, g, &h, a, b, c, &d, K[4], w4 = block[4]);
+    Round(d, e, f, &g, h, a, b, &c, K[5], w5 = block[5]);
+    Round(c, d, e, &f, g, h, a, &b, K[6], w6 = block[6]);
+    Round(b, c, d, &e, f, g, h, &a, K[7], w7 = block[7]);
+    Round(a, b, c, &d, e, f, g, &h, K[8], w8 = block[8]);
+    Round(h, a, b, &c, d, e, f, &g, K[9], w9 = block[9]);
+    Round(g, h, a, &b, c, d, e, &f, K[10], w10 = block[10]);
+    Round(f, g, h, &a, b, c, d, &e, K[11], w11 = block[11]);
+    Round(e, f, g, &h, a, b, c, &d, K[12], w12 = block[12]);
+    Round(d, e, f, &g, h, a, b, &c, K[13], w13 = block[13]);
+    Round(c, d, e, &f, g, h, a, &b, K[14], w14 = block[14]);
+    Round(b, c, d, &e, f, g, h, &a, K[15], w15 = block[15]);
 
     /* ---- Rounds 16-31 ---- */
     Round(a, b, c, &d, e, f, g, &h, K[16], w0 += sigma1(w14) + w9 + sigma0(w1));
@@ -178,15 +178,17 @@ static void sha512_384_block(CPUX86State *env, target_ulong rsi, target_ulong rd
     uint64_t block[16];
     int i;
 
+    /* State: load as uint64_t (native integer semantics). */
     for (i = 0; i < 8; i++) {
         state[i] = cpu_ldq_le_data(env, rdi + i * 8);
     }
 
+    /* Block: load as big-endian per SHA-512 spec. */
     for (i = 0; i < 16; i++) {
-        block[i] = cpu_ldq_le_data(env, rsi + (i << 3));
+        block[i] = cpu_ldq_be_data(env, rsi + (i << 3));
     }
 
-    sha512_384_compress(state, (const uint8_t *)block);
+    sha512_384_compress(state, block);
 
     /*
      * Note: The XSHA384 instruction writes back the full 64-byte state,
