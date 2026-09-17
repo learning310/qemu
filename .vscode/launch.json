@@ -1,0 +1,73 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+	{
+		"name": "Launch",
+		"type": "cppdbg",
+		"request": "launch",
+		"program": "${workspaceFolder}/build/qemu-system-x86_64",
+		"args": [
+			"-smp", "maxsockets=1,maxdies=1,maxmodules=1,maxcores=8,maxthreads=2",
+			"-machine", "q35,custom-topo=on",
+			"-device", "cpu-socket,id=sock0",
+			"-device", "cpu-die,id=die0,bus=sock0",
+			"-device", "cpu-module,id=mod0,bus=die0",
+			"-device", "x86-intel-atom,id=core0,bus=mod0",
+			"-device", "x86-intel-atom,id=core1,bus=mod0",
+			"-device", "x86-intel-atom,id=core2,bus=mod0",
+			"-device", "x86-intel-atom,id=core3,bus=mod0",
+			"-device", "x86-intel-core,id=core4,bus=mod0",
+			"-device", "x86-intel-core,id=core5,bus=mod0",
+			"-device", "x86-intel-core,id=core6,bus=mod0",
+			"-device", "x86-intel-core,id=core7,bus=mod0",
+			"-device", "host-x86_64-cpu,id=cpu0,socket-id=0,die-id=0,module-id=0,core-id=0,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu1,socket-id=0,die-id=0,module-id=0,core-id=1,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu2,socket-id=0,die-id=0,module-id=0,core-id=2,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu3,socket-id=0,die-id=0,module-id=0,core-id=3,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu4,socket-id=0,die-id=0,module-id=0,core-id=4,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu5,socket-id=0,die-id=0,module-id=0,core-id=4,thread-id=1",
+			"-device", "host-x86_64-cpu,id=cpu6,socket-id=0,die-id=0,module-id=0,core-id=5,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu7,socket-id=0,die-id=0,module-id=0,core-id=5,thread-id=1",
+			"-device", "host-x86_64-cpu,id=cpu8,socket-id=0,die-id=0,module-id=0,core-id=6,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu9,socket-id=0,die-id=0,module-id=0,core-id=6,thread-id=1",
+			"-device", "host-x86_64-cpu,id=cpu10,socket-id=0,die-id=0,module-id=0,core-id=7,thread-id=0",
+			"-device", "host-x86_64-cpu,id=cpu11,socket-id=0,die-id=0,module-id=0,core-id=7,thread-id=1",
+
+			"-cpu", "host",
+			"--enable-kvm",
+
+			"-m", "4G",
+			"-kernel", "~/tmp/devel/arch/x86/boot/bzImage",
+			"-bios", "/usr/share/ovmf/OVMF.fd",
+			"-fsdev", "local,security_model=mapped-xattr,id=fsdev0,path=${workspaceFolder},readonly=off",
+			"-device", "virtio-9p-pci,id=fs0,fsdev=fsdev0,mount_tag=hostshare",
+			"-drive", "file=~/kernel/rootfs.ext4,index=0,format=raw,media=disk",
+			"-drive", "file=~/kernel/swap.img,index=1,format=raw,media=disk",
+			
+			"-nographic",
+
+			"-append",
+			"root=/dev/sda rw resume=/dev/sdb console=ttyS0 nokaslr tsc=reliable apic=debug show_lapic=all ignore_loglevel",
+		],
+		"stopAtEntry": false,
+		"cwd": "${fileDirname}",
+		"environment": [],
+		"externalConsole": false,
+		"MIMode": "gdb",
+		"setupCommands": [
+			{
+				"text": "set print pretty on"
+			},
+			{
+				"text": "set print frame-arguments none"
+			},
+			{
+				"text": "set print frame-info short-location"
+			},
+		]
+	}
+	]
+}

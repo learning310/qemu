@@ -1,0 +1,133 @@
+// x86/topo-full，sibling list正确，smt control正常
+~ # ./tool/cpuid -l 0x1f -r
+CPU 0:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000001 ecx=0x00000100 edx=0x00000000
+CPU 1:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000001 ecx=0x00000100 edx=0x00000002
+CPU 2:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000001 ecx=0x00000100 edx=0x00000004
+CPU 3:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000001 ecx=0x00000100 edx=0x00000006
+CPU 4:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x00000008
+CPU 5:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x00000009
+CPU 6:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x0000000a
+CPU 7:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x0000000b
+CPU 8:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x0000000c
+CPU 9:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x0000000d
+CPU 10:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x0000000e
+CPU 11:
+   0x0000001f 0x00: eax=0x00000001 ebx=0x00000002 ecx=0x00000100 edx=0x0000000f
+~ # cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+0
+1
+10-11
+10-11
+2
+3
+4-5
+4-5
+6-7
+6-7
+8-9
+8-9
+~ # cat /sys/devices/system/cpu/smt/control 
+on
+~ # echo off > /sys/devices/system/cpu/smt/control
+~ # cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+0
+1
+10
+2
+3
+4
+6
+8
+
+// topo-cleanup-v3，sibling list错误
+~ # cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+0
+1
+10
+11
+2
+3
+4
+5
+6
+7
+8
+9
+
+// topo-cpuid-v6，sibling list错误
+~ # cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+0
+1
+10
+11
+2
+3
+4
+5
+6
+7
+8
+9
+
+// 6.8-rc4，sibling list正确，smt control异常
+~ # cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+0
+1
+10-11
+10-11
+2
+3
+4-5
+4-5
+6-7
+6-7
+8-9
+8-9
+~ # cat /sys/devices/system/cpu/smt/control 
+notsupported
+~ # echo on > /sys/devices/system/cpu/smt/control
+sh: write error: No such device
+
+// 6.8-rc4 + AP debug patch，smt control默认值正确，但是关闭后smt副线程未正常下线
+~ # cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+0
+1
+10-11
+10-11
+2
+3
+4-5
+4-5
+6-7
+6-7
+8-9
+8-9
+~ # cat /sys/devices/system/cpu/smt/control 
+on
+~ # echo off > /sys/devices/system/cpu/smt/control 
+~ # cat /sys/devices/system/cpu/smt/control 
+off
+~ # cat /sys/devices/system/cpu/cpu*/topology/thread_siblings_list
+0
+1
+10-11
+10-11
+2
+3
+4-5
+4-5
+6-7
+6-7
+8-9
+8-9
