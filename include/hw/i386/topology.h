@@ -197,7 +197,7 @@ static inline apic_id_t x86_apicid_from_cpu_idx(X86CPUTopoInfo *topo_info,
 static inline bool x86_has_extended_topo(unsigned long *topo_bitmap)
 {
     return test_bit(CPU_TOPOLOGY_LEVEL_MODULE, topo_bitmap) ||
-           test_bit(CPU_TOPOLOGY_LEVEL_DIE, topo_bitmap);
+           test_bit(CPU_TOPOLOGY_LEVEL_DIE, topo_bitmap) || 1;
 }
 
 #endif /* HW_I386_TOPOLOGY_H */

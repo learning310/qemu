@@ -305,6 +305,8 @@ static void encode_cache_cpuid4(CPUCacheInfo *cache,
            (cache->complex_indexing ? CACHE_COMPLEX_IDX : 0);
 }
 
+static char debug = 0;
+
 static uint32_t num_threads_by_topo_level(X86CPUTopoInfo *topo_info,
                                           enum CpuTopologyLevel topo_level)
 {
@@ -312,7 +314,11 @@ static uint32_t num_threads_by_topo_level(X86CPUTopoInfo *topo_info,
     case CPU_TOPOLOGY_LEVEL_THREAD:
         return 1;
     case CPU_TOPOLOGY_LEVEL_CORE:
-        return topo_info->threads_per_core;
+        debug++;
+        if (debug <= 4)
+            return 1;
+        else
+            return topo_info->threads_per_core;
     case CPU_TOPOLOGY_LEVEL_MODULE:
         return topo_info->threads_per_core * topo_info->cores_per_module;
     case CPU_TOPOLOGY_LEVEL_DIE:
